@@ -12,7 +12,11 @@ from app.db.mongo import close_client
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    db = get_db()
+    await ensure_indexes(db)
+
     yield
+    
     await close_client()
 
 # Create FastAPI app

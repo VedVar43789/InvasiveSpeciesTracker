@@ -1,5 +1,5 @@
 '''
-Health endpoints for the Invasive Species Tracker
+Health endpoint for the Invasive Species Tracker
 '''
 
 from fastapi import APIRouter
