@@ -3,22 +3,32 @@ FastAPI application for the Invasive Species Tracker
 '''
 
 from fastapi import FastAPI
-import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+from app.core.config import settings
+from app.api.v1.api import router as api_router
+from app.db.mongo import close_client
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await close_client()
 
 # Create FastAPI app
-app = FastAPI()
+app = FastAPI(title=settings.app_name, 
+    lifespan=lifespan, 
+    description=settings.app_description, 
+    version=settings.version
+)
 
-@app.get("/")
-def read_root():
-    return {"message": "Invasive Species Tracker API"}
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-@app.get("/api/v1/health")
-def read_health():
-    return {"message": "Healthy"}
-
-@app.get("/api/v1/version")
-def read_version():
-    return {"message": "1.0.0"}
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+app.include_router(api_router, prefix=settings.api_v1_prefix)
