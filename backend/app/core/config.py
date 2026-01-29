@@ -14,4 +14,7 @@ class Settings(BaseSettings):
     mongo_uri: str = Field(default="mongodb://localhost:27017", alias="MONGO_URI")
     mongo_db: str = Field(default="invasive_tracker", alias="MONGO_DB")
 
+    app_description: str = Field(default="API for the Invasive Species Tracker", alias="APP_DESCRIPTION")
+    version: str = Field(default="0.1.0", alias="VERSION")
+
 settings = Settings()

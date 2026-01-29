@@ -1,6 +1,12 @@
-python
+# Core
 fastapi
 uvicorn[standard]
 motor
 pydantic-settings
 python-dotenv
+pymongo
+
+# Testing
+pytest
+pytest-asyncio
+httpx
