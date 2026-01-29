@@ -1,3 +1,7 @@
+'''
+MongoDB client and database initialization
+'''
+
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from app.core.config import settings
 
@@ -11,6 +15,7 @@ def get_client() -> AsyncIOMotorClient:
 
 def get_db() -> AsyncIOMotorDatabase:
     client = get_client()
+    print(f"Connected to MongoDB: {settings.mongo_uri}")
     return client[settings.mongo_db]
 
 async def close_client() -> None:

@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.api.v1.api import router as api_router
-from app.db.mongo import close_client
+from app.db.mongo import close_client, get_db
+from app.db.indexes import ensure_indexes
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # db = get_db()
+    db = get_db()
     # await ensure_indexes(db)
 
     yield

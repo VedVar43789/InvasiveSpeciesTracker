@@ -1,5 +1,5 @@
 '''
-Indexes for the Invasive Species Tracker
+DB index creation
 '''
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
