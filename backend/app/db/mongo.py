@@ -1,25 +1,25 @@
-'''
-MongoDB client and database initialization
-'''
+# '''
+# MongoDB client and database initialization
+# '''
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from app.core.config import settings
+# from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+# from app.core.config import settings
 
-_client: AsyncIOMotorClient | None = None
+# _client: AsyncIOMotorClient | None = None
 
-def get_client() -> AsyncIOMotorClient:
-    global _client
-    if _client is None:
-        _client = AsyncIOMotorClient(settings.mongo_uri)
-    return _client
+# def get_client() -> AsyncIOMotorClient:
+#     global _client
+#     if _client is None:
+#         _client = AsyncIOMotorClient(settings.mongo_uri)
+#     return _client
 
-def get_db() -> AsyncIOMotorDatabase:
-    client = get_client()
-    print(f"Connected to MongoDB: {settings.mongo_uri}")
-    return client[settings.mongo_db]
+# def get_db() -> AsyncIOMotorDatabase:
+#     client = get_client()
+#     print(f"Connected to MongoDB: {settings.mongo_uri}")
+#     return client[settings.mongo_db]
 
-async def close_client() -> None:
-    global _client
-    if _client is not None:
-        _client.close()
-        _client = None
+# async def close_client() -> None:
+#     global _client
+#     if _client is not None:
+#         _client.close()
+#         _client = None

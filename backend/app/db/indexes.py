@@ -1,15 +1,15 @@
-'''
-DB index creation
-'''
+# '''
+# DB index creation
+# '''
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ASCENDING, DESCENDING
+# from motor.motor_asyncio import AsyncIOMotorDatabase
+# from pymongo import ASCENDING, DESCENDING
 
-async def ensure_indexes(db: AsyncIOMotorDatabase):
-    '''
-    Create required MongoDB indexes.
-    Safe to run multiple times (MongoDB will skip if index already exists).
-    '''
+# async def ensure_indexes(db: AsyncIOMotorDatabase):
+#     '''
+#     Create required MongoDB indexes.
+#     Safe to run multiple times (MongoDB will skip if index already exists).
+#     '''
     
     # tbd
     # await db["species"].create_index([("name", ASCENDING)], unique=True)

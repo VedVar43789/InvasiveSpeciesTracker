@@ -8,17 +8,22 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.api.v1.api import router as api_router
-from app.db.mongo import close_client, get_db
-from app.db.indexes import ensure_indexes
+# from app.db.mongo import close_client, get_db
+# from app.db.indexes import ensure_indexes
+from app.db.csv_store import load_csv, set_df, unload_df
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db = get_db()
+    # db = get_db()
     # await ensure_indexes(db)
+    df = load_csv("data/species.csv")
+    set_df(df)
 
     yield
 
-    await close_client()
+    # await close_client()
+    unload_df()
 
 # Create FastAPI app
 app = FastAPI(title=settings.app_name, 
