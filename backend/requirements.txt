@@ -10,3 +10,6 @@ pymongo
 pytest
 pytest-asyncio
 httpx
+
+# Database
+pandas

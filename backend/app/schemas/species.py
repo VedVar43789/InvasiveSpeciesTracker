@@ -17,3 +17,10 @@ class SpeciesOut(SpeciesCreate):
     id: str = Field(..., description="The ID of the species")
     created_at: datetime = Field(..., description="The date and time the species was created")
     updated_at: datetime = Field(..., description="The date and time the species was last updated")
+
+class SpeciesNearbyOut(BaseModel):
+    id: str = Field(..., description="The ID of the species")
+    scientific_name: str = Field(..., description="The scientific name of the species")
+    common_name: Optional[str] = Field(None, description="The common name of the species")
+    family: Optional[str] = Field(None, description="The family of the species")
+    distance_km: float = Field(..., description="The distance to the species in kilometers")

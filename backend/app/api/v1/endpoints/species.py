@@ -3,71 +3,77 @@ Species endpoint for the Invasive Species Tracker
 '''
 
 from fastapi import APIRouter, Depends, HTTPException
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime
 from bson import ObjectId
+import pandas as pd
 
-from app.db.mongo import get_db
-from app.schemas.species import SpeciesCreate, SpeciesOut
+# from app.db.mongo import get_db
+from app.schemas.species import SpeciesNearbyOut
+from app.db.csv_store import get_df, query_species_by_location
 
 
 router = APIRouter(prefix="/species", tags=["species"])
 
 
-def _to_out(doc: dict) -> SpeciesOut:
-    return SpeciesOut(
-        id=str(doc["_id"]),
-        name=doc["name"],
-        scientific_name=doc["scientific_name"],
-        common_name=doc["common_name"],
-        category=doc["category"],
-        order=doc["order"],
+def _to_out(species: dict) -> SpeciesNearbyOut:
+    return SpeciesNearbyOut(
+        id=species.get("id", ""),
+        scientific_name=species.get("scientific_name", ""),
+        common_name=species.get("common_name", ""),
+        family=species.get("family", ""),
+        distance_km=species.get("distance_km", 0),
     )
 
-
-@router.post("", response_model=SpeciesOut)
-async def create_species(payload: SpeciesCreate, db: AsyncIOMotorDatabase = Depends(get_db)):
-    now = datetime.now(datetime.timezone.utc)
-    doc = payload.model_dump()
-    doc["created_at"] = now
-    doc["updated_at"] = now
-
-    try:
-        result = await db.species.insert_one(doc)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Species already exists")
-
-    created = await db.species.find_one({"_id": result.inserted_id})
-    return _to_out(created)
-    
-
-@router.get("", response_model=list[SpeciesOut])
-async def list_species(
-    q: str | None = None,
-    limit: int = 50,
-    db: AsyncIOMotorDatabase = Depends(get_db),
+@router.get("/by-location", response_model=list[SpeciesNearbyOut])
+async def get_species_by_location(
+    latitude: float, 
+    longitude: float, 
+    radius_km: float = 10000,
+    limit: int = 50, 
+    df: pd.DataFrame = Depends(get_df),
 ):
     limit = min(max(limit, 1), 200) # pagination limit
 
-    query = {}
-    if q:
-        # Uses the text index defined in indexes.py
-        query = {"$text": {"$search": q}}
+    # uncomment to use real data from .csv file
+    # return [_to_out(species) for species in query_species_by_location(
+    #     df, latitude, longitude, radius_km, limit)
+    # ]
 
-    cursor = db.species.find(query).sort("created_at", -1).limit(limit)
-    docs = await cursor.to_list(length=limit)
-    return [_to_out(d) for d in docs]
-
-
-@router.get("/{species_id}", response_model=SpeciesOut)
-async def get_species(species_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    try:
-        oid = ObjectId(species_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid species_id")
-
-    doc = await db.species.find_one({"_id": oid})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Species not found")
-
-    return _to_out(doc)
+    MOCK_SPECIES_NEARBY = [
+        {
+            "id": "ambrosia_artemisiifolia",
+            "scientific_name": "Ambrosia artemisiifolia",
+            "common_name": "Common ragweed",
+            "family": "Asteraceae",
+            "distance_km": 0.42,
+        },
+        {
+            "id": "carpobrotus_edulis",
+            "scientific_name": "Carpobrotus edulis",
+            "common_name": "Ice plant",
+            "family": "Aizoaceae",
+            "distance_km": 1.87,
+        },
+        {
+            "id": "cortaderia_selloana",
+            "scientific_name": "Cortaderia selloana",
+            "common_name": "Pampas grass",
+            "family": "Poaceae",
+            "distance_km": 3.12,
+        },
+        {
+            "id": "arundo_donax",
+            "scientific_name": "Arundo donax",
+            "common_name": "Giant reed",
+            "family": "Poaceae",
+            "distance_km": 6.55,
+        },
+        {
+            "id": "ricinus_communis",
+            "scientific_name": "Ricinus communis",
+            "common_name": "Castor bean",
+            "family": "Euphorbiaceae",
+            "distance_km": 9.98,
+        },
+    ]
+    return [_to_out(species) for species in MOCK_SPECIES_NEARBY]
