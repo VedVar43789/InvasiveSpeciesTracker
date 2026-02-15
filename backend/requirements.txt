@@ -13,3 +13,6 @@ httpx
 
 # Database
 pandas
+
+scikit-learn
+requests

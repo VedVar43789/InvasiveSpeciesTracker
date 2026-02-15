@@ -3,7 +3,11 @@ from pydantic import Field
 from typing import List
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env", 
+        env_file_encoding="utf-8",
+        extra="ignore"  # Ignore extra fields in .env that aren't in the model
+    )
 
     app_name: str = Field(default="Invasive Tracker API", alias="APP_NAME")
     env: str = Field(default="dev", alias="ENV")

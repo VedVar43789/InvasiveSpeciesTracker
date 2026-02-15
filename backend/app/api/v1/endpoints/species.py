@@ -2,7 +2,7 @@
 Species endpoint for the Invasive Species Tracker
 '''
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime
 from bson import ObjectId
 import pandas as pd
@@ -26,10 +26,10 @@ def _to_out(species: dict) -> SpeciesNearbyOut:
 
 @router.get("/by-location", response_model=list[SpeciesNearbyOut])
 async def get_species_by_location(
-    latitude: float, 
-    longitude: float, 
-    radius_km: float = 10000,
-    limit: int = 50, 
+    latitude: float = Query(..., ge=-90, le=90, description="Latitude between -90 and 90"),
+    longitude: float = Query(..., ge=-180, le=180, description="Longitude between -180 and 180"),
+    radius_km: float = Query(5.0, gt=0, le=1000, description="Search radius in km (max 1000)"),
+    limit: int = Query(50, ge=1, le=200, description="Max number of results"),
     df: pd.DataFrame = Depends(get_df),
 ):
     limit = min(max(limit, 1), 200) # pagination limit
