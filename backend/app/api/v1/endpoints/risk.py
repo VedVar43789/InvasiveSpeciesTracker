@@ -6,7 +6,7 @@ import numpy as np
 
 from app.db.ml_store import get_ml_df
 from app.ml.risk_engine import calculate_risk
-from app.core.utils import fetch_rainfall, estimate_soil_ph, fetch_species_from_gbif
+from app.core.utils import fetch_rainfall, derive_biome, estimate_soil_ph, fetch_species_from_gbif
 from app.schemas.risk import RiskAnalysisRequest, RiskAnalysisResponse
 
 router = APIRouter(prefix="/risk", tags=["risk"])
@@ -47,8 +47,12 @@ async def scan_risk(
     )
     
     # Calculate environmental data (always needed for metadata)
-    rainfall = fetch_rainfall(request.lat, request.lng)
-    soil_ph = estimate_soil_ph(request.biome_context)
+    rainfall, avg_temp = fetch_rainfall(request.lat, request.lng)
+    if request.biome_context:
+        biome = request.biome_context
+    else:
+        biome = derive_biome(rainfall, avg_temp)
+    soil_ph = estimate_soil_ph(biome, avg_temp)
     
     # Early return if no species found
     if not nearby_species:
@@ -56,7 +60,7 @@ async def scan_risk(
             "meta": {
                 "rainfall_used": rainfall,
                 "soil_ph_used": soil_ph,
-                "biome": request.biome_context,
+                "biome": biome,
                 "species_found_nearby": 0,
                 "species_in_ml_dataset": 0
             },
