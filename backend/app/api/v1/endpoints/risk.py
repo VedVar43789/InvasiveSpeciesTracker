@@ -54,12 +54,19 @@ async def scan_risk(
         biome = derive_biome(rainfall, avg_temp)
     soil_ph = estimate_soil_ph(biome)
     
-    # Normalize GBIF species names for matching
-    nearby_names = {
-        _normalize_scientific_name(s.get('scientific_name', '')) 
-        for s in nearby_species 
-        if s.get('scientific_name')
-    }
+    # Build name -> coords lookup from GBIF data (first occurrence wins)
+    nearby_coords = {}
+    for s in nearby_species:
+        name = s.get('scientific_name', '')
+        if not name:
+            continue
+        norm = _normalize_scientific_name(name)
+        if norm not in nearby_coords:
+            nearby_coords[norm] = {
+                "lat": s.get("latitude"),
+                "lng": s.get("longitude"),
+            }
+    nearby_names = set(nearby_coords.keys())
 
     # Build dynamic profile for risk calculation
     dynamic_profile = {}
@@ -99,6 +106,9 @@ async def scan_risk(
         else:
             label = "Low Risk"
             
+        # Attach GBIF coordinates if species was found nearby
+        coords = nearby_coords.get(normalized, {})
+
         formatted_results.append({
             "scientific_name": row['scientific_name'],
             "common_name": row.get('common_name', "Unknown"),
@@ -106,6 +116,8 @@ async def scan_risk(
             "risk_score": float(score),
             "risk_label": label,
             "found_in_gbif_radius": found_in_radius,
+            "latitude": coords.get("lat"),
+            "longitude": coords.get("lng"),
         })
     
     sorted_results = sorted(
