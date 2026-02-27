@@ -108,14 +108,20 @@ async def scan_risk(
             "found_in_gbif_radius": found_in_radius,
         })
     
-    sorted_results = sorted(
-        formatted_results,
-        key=lambda r: (
-            not r["found_in_gbif_radius"], # false sorts before true
-            -float(r.get("risk_score", 0.0)),  
-        ),
-    )
+    # sorted_results = sorted(
+    #     formatted_results,
+    #     key=lambda r: (
+    #         not r["found_in_gbif_radius"], # false sorts before true
+    #         -float(r.get("risk_score", 0.0)),  
+    #     ),
+    # )
         
+    filtered_results = [r for r in formatted_results if not r["found_in_gbif_radius"]]
+    sorted_results = sorted(
+        filtered_results, 
+        key=lambda r: -float(r.get("risk_score", 0.0))
+    )
+
     return {
         "meta": {
             "rainfall_used": rainfall,
@@ -123,7 +129,8 @@ async def scan_risk(
             "biome": request.biome_context,
             "species_found_nearby": len(nearby_names),
             "species_in_ml_dataset": len(ml_df),
-            "species_tagged_in_radius": sum(1 for r in sorted_results if r["found_in_gbif_radius"]),
+            "species_tagged_in_radius": sum(1 for r in formatted_results if r["found_in_gbif_radius"]),
+            "species_returned": len(sorted_results),
         },
         "results": sorted_results
     }
