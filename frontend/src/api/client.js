@@ -1,32 +1,34 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
-async function request(endpoint, options = {}) {
-  const url = `${API_URL}${endpoint}`;
-
-  const config = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+async function request(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
-  };
-
-  const response = await fetch(url, config);
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'API request failed');
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail || `Request failed: ${res.status}`);
   }
-
-  return response.json();
+  return res.json();
 }
 
-export const api = {
-  get: (endpoint, options) => request(endpoint, { ...options, method: 'GET' }),
-  post: (endpoint, data, options) => request(endpoint, { ...options, method: 'POST', body: JSON.stringify(data) }),
-  put: (endpoint, data, options) => request(endpoint, { ...options, method: 'PUT', body: JSON.stringify(data) }),
-  patch: (endpoint, data, options) => request(endpoint, { ...options, method: 'PATCH', body: JSON.stringify(data) }),
-  delete: (endpoint, options) => request(endpoint, { ...options, method: 'DELETE' }),
-};
+export async function scanRisk({ lat, lng, biome_context, is_urban, radius_km = 50 }) {
+  return request('/risk/scan', {
+    method: 'POST',
+    body: JSON.stringify({ lat, lng, biome_context, is_urban, radius_km }),
+  });
+}
 
-export default api;
+export async function getSpeciesByLocation({ latitude, longitude, radius_km = 5, limit = 50 }) {
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    radius_km: String(radius_km),
+    limit: String(limit),
+  });
+  return request(`/species/by-location?${params}`);
+}
+
+export async function healthCheck() {
+  return request('/health');
+}
