@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import Globe from 'react-globe.gl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Globe2, Bug, AlertTriangle, X, Search, Leaf, Loader2
+  Globe2, Bug, AlertTriangle, X, Search, Leaf, Loader2, ArrowRight
 } from 'lucide-react';
 import { scanRisk } from '@/api/client';
 
@@ -36,6 +37,7 @@ export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState(null);
 
   const highRiskCount = riskData?.results?.filter(r => r.risk_label === 'High Risk').length ?? 0;
   const modRiskCount = riskData?.results?.filter(r => r.risk_label === 'Moderate Risk').length ?? 0;
@@ -82,9 +84,17 @@ export default function Home() {
     }
   }, [runScan]);
 
-  // High risk species list for the modal
+  // Species lists by category for the modal
   const highRiskSpecies = useMemo(() => {
     return (riskData?.results ?? []).filter(r => r.risk_label === 'High Risk');
+  }, [riskData]);
+
+  const moderateRiskSpecies = useMemo(() => {
+    return (riskData?.results ?? []).filter(r => r.risk_label === 'Moderate Risk');
+  }, [riskData]);
+
+  const lowRiskSpecies = useMemo(() => {
+    return (riskData?.results ?? []).filter(r => r.risk_label === 'Low Risk');
   }, [riskData]);
 
   return (
@@ -109,7 +119,7 @@ export default function Home() {
               <a href="#" className="text-white text-sm font-medium">Dashboard</a>
               <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Species</a>
               <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Reports</a>
-              <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Research</a>
+              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
             </nav>
 
             <div className="flex items-center gap-3">
@@ -237,6 +247,22 @@ export default function Home() {
               <p className="text-sm text-red-300">{scanError}</p>
             </div>
           )}
+
+          {/* Case study nudge */}
+          <Link to="/hawaii" className="absolute bottom-6 right-6 group">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 4, duration: 1 }}
+              className="bg-slate-900/80 backdrop-blur-xl rounded-2xl px-5 py-3 border border-slate-700/50 hover:border-slate-500/50 transition-all cursor-pointer"
+            >
+              <p className="text-sm text-slate-300 group-hover:text-white transition-colors flex items-center gap-2">
+                Why track invasive species?
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
+              </p>
+              <p className="text-xs text-slate-600 mt-0.5">A look at what happened to Hawaii</p>
+            </motion.div>
+          </Link>
         </div>
       </main>
 
@@ -248,7 +274,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-6"
-            onClick={() => setShowModal(false)}
+            onClick={() => { setShowModal(false); setExpandedCategory(null); }}
           >
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -270,74 +296,98 @@ export default function Home() {
                     {riskData.meta?.rainfall_used ? `${Math.round(riskData.meta.rainfall_used)} mm rainfall` : ''} · pH {riskData.meta?.soil_ph_used?.toFixed(1)} · {riskData.meta?.biome || "Auto-detected"} biome
                   </p>
                 </div>
-                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white transition-colors p-1">
+                <button onClick={() => { setShowModal(false); setExpandedCategory(null); }} className="text-slate-400 hover:text-white transition-colors p-1">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Summary cards */}
+              {/* Clickable category cards */}
               <div className="grid grid-cols-3 gap-3 p-6 pb-4">
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-red-400">{highRiskCount}</p>
-                  <p className="text-xs text-red-400/80 mt-1">High Risk</p>
-                </div>
-                <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-orange-400">{modRiskCount}</p>
-                  <p className="text-xs text-orange-400/80 mt-1">Moderate</p>
-                </div>
-                <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-cyan-400">{speciesCount}</p>
-                  <p className="text-xs text-cyan-400/80 mt-1">Total Species</p>
-                </div>
+                {[
+                  { key: 'high', label: 'High Risk', count: highRiskCount, bg: 'bg-red-500/10', border: 'border-red-500/20', activeBorder: 'border-red-500/60', text: 'text-red-400', subtext: 'text-red-400/80' },
+                  { key: 'moderate', label: 'Moderate', count: modRiskCount, bg: 'bg-orange-500/10', border: 'border-orange-500/20', activeBorder: 'border-orange-500/60', text: 'text-orange-400', subtext: 'text-orange-400/80' },
+                  { key: 'low', label: 'Low Risk', count: speciesCount - highRiskCount - modRiskCount, bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', activeBorder: 'border-yellow-500/60', text: 'text-yellow-400', subtext: 'text-yellow-400/80' },
+                ].map((cat) => (
+                  <button
+                    key={cat.key}
+                    onClick={() => setExpandedCategory(expandedCategory === cat.key ? null : cat.key)}
+                    className={`${cat.bg} border ${expandedCategory === cat.key ? cat.activeBorder : cat.border} rounded-xl p-4 text-center transition-all hover:scale-105 cursor-pointer`}
+                  >
+                    <p className={`text-3xl font-bold ${cat.text}`}>{cat.count}</p>
+                    <p className={`text-xs ${cat.subtext} mt-1`}>{cat.label}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Click to view</p>
+                  </button>
+                ))}
               </div>
 
-              {/* Species list */}
-              <div className="px-6 pb-2">
-                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
-                  High Risk Species ({highRiskSpecies.length})
-                </h3>
-              </div>
-              <div className="px-6 pb-6 overflow-y-auto max-h-[40vh] space-y-2">
-                {highRiskSpecies.length > 0 ? highRiskSpecies.map((species) => (
-                  <div
-                    key={species.scientific_name}
-                    className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-white font-medium truncate">
-                          {species.common_name !== "Unknown" ? species.common_name : species.scientific_name}
-                        </h4>
-                        <p className="text-xs text-slate-500 italic truncate">{species.scientific_name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {species.found_in_gbif_radius && (
-                            <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">
-                              Nearby
-                            </Badge>
-                          )}
-                          {species.is_invasive === 1 && (
-                            <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">
-                              Invasive
-                            </Badge>
-                          )}
-                        </div>
+              {/* Expanded species list */}
+              <AnimatePresence mode="wait">
+                {expandedCategory && (() => {
+                  const categoryMap = {
+                    high: { label: 'High Risk', species: highRiskSpecies },
+                    moderate: { label: 'Moderate Risk', species: moderateRiskSpecies },
+                    low: { label: 'Low Risk', species: lowRiskSpecies },
+                  };
+                  const { label, species } = categoryMap[expandedCategory];
+                  return (
+                    <motion.div
+                      key={expandedCategory}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-6 pb-2">
+                        <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
+                          {label} Species ({species.length})
+                        </h3>
                       </div>
-                      <div className="flex flex-col items-end gap-1 ml-2">
-                        <Badge className={`border-0 ${getRiskBadgeStyle(species.risk_label)}`}>
-                          {species.risk_label}
-                        </Badge>
-                        <span className="text-xs text-slate-500">
-                          {(species.risk_score * 100).toFixed(0)}%
-                        </span>
+                      <div className="px-6 pb-6 overflow-y-auto max-h-[35vh] space-y-2">
+                        {species.length > 0 ? species.map((s) => (
+                          <div
+                            key={s.scientific_name}
+                            className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-white font-medium truncate">
+                                  {s.common_name !== "Unknown" ? s.common_name : s.scientific_name}
+                                </h4>
+                                <p className="text-xs text-slate-500 italic truncate">{s.scientific_name}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {s.found_in_gbif_radius && (
+                                    <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">
+                                      Nearby
+                                    </Badge>
+                                  )}
+                                  {s.is_invasive === 1 && (
+                                    <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">
+                                      Invasive
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 ml-2">
+                                <Badge className={`border-0 ${getRiskBadgeStyle(s.risk_label)}`}>
+                                  {s.risk_label}
+                                </Badge>
+                                <span className="text-xs text-slate-500">
+                                  {(s.risk_score * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="p-4 rounded-xl border border-dashed border-slate-700 text-center">
+                            <p className="text-sm text-slate-500">No {label.toLowerCase()} species detected</p>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="p-4 rounded-xl border border-dashed border-slate-700 text-center">
-                    <p className="text-sm text-slate-500">No high risk species detected</p>
-                  </div>
-                )}
-              </div>
+                    </motion.div>
+                  );
+                })()}
+              </AnimatePresence>
             </motion.div>
           </motion.div>
         )}
