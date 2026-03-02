@@ -6,7 +6,7 @@ import numpy as np
 
 from app.db.ml_store import get_ml_df
 from app.ml.risk_engine import calculate_risk
-from app.core.utils import fetch_rainfall, estimate_soil_ph, fetch_species_from_gbif
+from app.core.utils import fetch_rainfall, derive_biome, estimate_soil_ph, fetch_species_from_gbif
 from app.schemas.risk import RiskAnalysisRequest, RiskAnalysisResponse
 
 router = APIRouter(prefix="/risk", tags=["risk"])
@@ -47,21 +47,12 @@ async def scan_risk(
     )
     
     # Calculate environmental data (always needed for metadata)
-    rainfall = fetch_rainfall(request.lat, request.lng)
-    soil_ph = estimate_soil_ph(request.biome_context)
-    
-    # Early return if no species found
-    if not nearby_species:
-        return {
-            "meta": {
-                "rainfall_used": rainfall,
-                "soil_ph_used": soil_ph,
-                "biome": request.biome_context,
-                "species_found_nearby": 0,
-                "species_in_ml_dataset": 0
-            },
-            "results": []
-        }
+    rainfall, avg_temp = fetch_rainfall(request.lat, request.lng)
+    if request.biome_context:
+        biome = request.biome_context
+    else:
+        biome = derive_biome(rainfall, avg_temp)
+    soil_ph = estimate_soil_ph(biome)
     
     # Normalize GBIF species names for matching
     nearby_names = {
@@ -69,22 +60,6 @@ async def scan_risk(
         for s in nearby_species 
         if s.get('scientific_name')
     }
-    
-    # Filter ML dataset to only nearby species
-    ml_df_filtered = _filter_ml_dataset_by_species(ml_df, nearby_names)
-    
-    # Early return if no matches in ML dataset
-    if ml_df_filtered.empty:
-        return {
-            "meta": {
-                "rainfall_used": rainfall,
-                "soil_ph_used": soil_ph,
-                "biome": request.biome_context,
-                "species_found_nearby": len(nearby_names),
-                "species_in_ml_dataset": 0
-            },
-            "results": []
-        }
 
     # Build dynamic profile for risk calculation
     dynamic_profile = {}
@@ -103,10 +78,19 @@ async def scan_risk(
     elif request.biome_context == 'Forest':
         dynamic_profile['habit_Shrub'] = 1.0
         
-    raw_results = calculate_risk(ml_df_filtered, dynamic_profile) # pass in the filtered dataframe
+    # Calculate risk
+    raw_results = calculate_risk(ml_df, dynamic_profile) 
     
+    # Format results
     formatted_results = []
     for row in raw_results:
+
+        # Check if species is in GBIF radius
+        sci_name = row.get("scientific_name", "")
+        normalized = _normalize_scientific_name(sci_name)
+        found_in_radius = normalized in nearby_names
+
+        # Label risk
         score = row['risk_score']
         if score >= 0.65:
             label = "High Risk"
@@ -120,16 +104,33 @@ async def scan_risk(
             "common_name": row.get('common_name', "Unknown"),
             "is_invasive": int(row['is_invasive']),
             "risk_score": float(score),
-            "risk_label": label
+            "risk_label": label,
+            "found_in_gbif_radius": found_in_radius,
         })
+    
+    # sorted_results = sorted(
+    #     formatted_results,
+    #     key=lambda r: (
+    #         not r["found_in_gbif_radius"], # false sorts before true
+    #         -float(r.get("risk_score", 0.0)),  
+    #     ),
+    # )
         
+    filtered_results = [r for r in formatted_results if not r["found_in_gbif_radius"]]
+    sorted_results = sorted(
+        filtered_results, 
+        key=lambda r: -float(r.get("risk_score", 0.0))
+    )
+
     return {
         "meta": {
             "rainfall_used": rainfall,
             "soil_ph_used": soil_ph,
             "biome": request.biome_context,
             "species_found_nearby": len(nearby_names),
-            "species_in_ml_dataset": len(ml_df_filtered)
+            "species_in_ml_dataset": len(ml_df),
+            "species_tagged_in_radius": sum(1 for r in formatted_results if r["found_in_gbif_radius"]),
+            "species_returned": len(sorted_results),
         },
-        "results": formatted_results
+        "results": sorted_results
     }

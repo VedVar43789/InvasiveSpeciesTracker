@@ -5,8 +5,8 @@ from pydantic import BaseModel
 class RiskAnalysisRequest(BaseModel):
     lat: float
     lng: float
-    biome_context: str
-    is_urban: bool = False
+    biome_context: Optional[str] = None
+    is_urban: Optional[bool] = False
     radius_km: float = 50.0
 
 class RiskResultItem(BaseModel):
