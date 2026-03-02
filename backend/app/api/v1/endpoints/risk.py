@@ -77,6 +77,14 @@ async def scan_risk(
         dynamic_profile['habit_Graminoid'] = 1.0
     elif request.biome_context == 'Forest':
         dynamic_profile['habit_Shrub'] = 1.0
+
+    dynamic_profile['growth_rate_Rapid'] = 1.0 
+    
+    # Favor plants that spread vegetatively (Rhizomes/Runners)
+    dynamic_profile['reproduction_Vegetative'] = 1.0
+    
+    # Favor plants that spread via birds/animals dropping seeds
+    dynamic_profile['dispersal_Animal'] = 1.0
         
     # Calculate risk
     raw_results = calculate_risk(ml_df, dynamic_profile) 
