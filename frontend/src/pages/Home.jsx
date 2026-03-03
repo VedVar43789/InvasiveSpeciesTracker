@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Globe from 'react-globe.gl';
@@ -11,15 +12,20 @@ import { scanRisk } from '@/api/client';
 
 const SAN_DIEGO = { lat: 32.7157, lng: -117.1611, name: "San Diego" };
 
-// Build heatmap data from scan results — single point at SD with
-// intensity derived from the ratio of high-risk species found.
-function buildHeatmapData(results) {
+function formatCoords({ lat, lng }) {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return '';
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
+// Build heatmap data from scan results — single point at the selected location
+// with intensity derived from the ratio of high-risk species found.
+function buildHeatmapData(results, location) {
   if (!results?.length) return [];
 
   const highCount = results.filter(s => s.risk_label === 'High Risk').length;
   const intensity = Math.min(highCount / results.length + 0.3, 1.0);
 
-  return [{ lat: SAN_DIEGO.lat, lng: SAN_DIEGO.lng, intensity }];
+  return [{ lat: location.lat, lng: location.lng, intensity }];
 }
 
 function getRiskBadgeStyle(label) {
@@ -29,9 +35,10 @@ function getRiskBadgeStyle(label) {
 }
 
 export default function Home() {
-  const globeEl = useRef();
+  const globeEl = useRef(null);
   const hasAutoScanned = useRef(false);
 
+  const [selectedLocation, setSelectedLocation] = useState(SAN_DIEGO);
   const [riskData, setRiskData] = useState(null);
   const [heatCloudData, setHeatCloudData] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
@@ -43,7 +50,8 @@ export default function Home() {
   const modRiskCount = riskData?.results?.filter(r => r.risk_label === 'Moderate Risk').length ?? 0;
   const speciesCount = riskData?.results?.length ?? 0;
 
-  const runScan = useCallback(async () => {
+  const runScan = useCallback(async (location = selectedLocation) => {
+    if (!location) return;
     setIsScanning(true);
     setScanError(null);
     setRiskData(null);
@@ -51,20 +59,48 @@ export default function Home() {
 
     try {
       const data = await scanRisk({
-        lat: SAN_DIEGO.lat,
-        lng: SAN_DIEGO.lng,
+        lat: location.lat,
+        lng: location.lng,
         radius_km: 50,
       });
       setRiskData(data);
-      setHeatCloudData(buildHeatmapData(data.results));
+      setHeatCloudData(buildHeatmapData(data.results, location));
     } catch (err) {
       setScanError(err.message);
     } finally {
       setIsScanning(false);
     }
-  }, []);
+  }, [selectedLocation]);
 
-  // Auto-zoom and auto-scan on mount
+  const handlePickLocation = useCallback(async (location, { flyTo = true } = {}) => {
+    if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
+
+    setExpandedCategory(null);
+    setSelectedLocation(location);
+
+    if (flyTo && globeEl.current) {
+      globeEl.current.pointOfView(
+        { lat: location.lat, lng: location.lng, altitude: 0.15 },
+        1200
+      );
+    }
+
+    await runScan(location);
+    setShowModal(true);
+  }, [runScan]);
+
+  const pointsData = useMemo(() => {
+    const base = [SAN_DIEGO];
+    const isSameAsSanDiego =
+      selectedLocation &&
+      selectedLocation.lat === SAN_DIEGO.lat &&
+      selectedLocation.lng === SAN_DIEGO.lng;
+
+    if (!selectedLocation || isSameAsSanDiego) return base;
+    return [...base, { ...selectedLocation, name: selectedLocation.name || 'Selected location' }];
+  }, [selectedLocation]);
+
+  // Auto-zoom and auto-scan on initial mount only
   useEffect(() => {
     if (!globeEl.current) return;
 
@@ -80,9 +116,11 @@ export default function Home() {
 
     if (!hasAutoScanned.current) {
       hasAutoScanned.current = true;
-      setTimeout(() => runScan(), 2200);
+      setTimeout(() => runScan(SAN_DIEGO), 2200);
     }
-  }, [runScan]);
+    // We intentionally want this effect to run only once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Species lists by category for the modal
   const highRiskSpecies = useMemo(() => {
@@ -128,7 +166,7 @@ export default function Home() {
               </Button>
               <Button
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={runScan}
+                onClick={() => runScan(selectedLocation)}
                 disabled={isScanning}
               >
                 {isScanning && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
@@ -149,18 +187,37 @@ export default function Home() {
             backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
             waitForGlobeReady={true}
 
-            pointsData={[SAN_DIEGO]}
+            onGlobeClick={({ lat, lng }) => {
+              console.log('GLOBE CLICK', lat, lng);
+              handlePickLocation({ lat, lng, name: 'Selected location' });
+            }}
+            onHeatmapClick={(heatmap, event, coords) => {
+              if (!coords) return;
+              console.log('HEATMAP CLICK', coords.lat, coords.lng);
+              handlePickLocation({ lat: coords.lat, lng: coords.lng, name: 'Selected location' }, { flyTo: false });
+            }}
+
+            pointsData={pointsData}
+
+            onPointClick={(point, event, coords) => {
+              console.log('POINT CLICK', point, coords);
+              handlePickLocation(point);
+            }}
             pointLat="lat"
             pointLng="lng"
-            pointColor={() => 'rgba(255,255,255,0.85)'}
+            pointColor={d => (d?.name === 'San Diego' ? 'rgba(255,255,255,0.85)' : 'rgba(34,211,238,0.95)')}
             pointAltitude={() => 0.025}
             pointRadius={() => 0.35}
-            pointLabel={() =>
-              `<div style="background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); padding: 12px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.5);">` +
-              `<div style="color: white; font-weight: 600; font-size: 14px; margin-bottom: 4px;">San Diego</div>` +
-              `<div style="color: rgba(148, 163, 184, 1); font-size: 12px;">Click to view risk analysis</div></div>`
-            }
-            onPointClick={() => setShowModal(true)}
+            pointLabel={d => {
+              const title = d?.name || 'Location';
+              const coords = d?.lat != null && d?.lng != null ? formatCoords(d) : '';
+              return (
+                `<div style="background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); padding: 12px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.5);">` +
+                `<div style="color: white; font-weight: 600; font-size: 14px; margin-bottom: 2px;">${title}</div>` +
+                (coords ? `<div style="color: rgba(148, 163, 184, 1); font-size: 12px; margin-bottom: 4px;">${coords}</div>` : '') +
+                `<div style="color: rgba(148, 163, 184, 1); font-size: 12px;">Click to scan this location</div></div>`
+              );
+            }}
 
             heatmapsData={[heatCloudData]}
             heatmapPoints={d => d}
@@ -171,7 +228,7 @@ export default function Home() {
             heatmapTopAltitude={0.005}
             heatmapsTransitionDuration={500}
 
-            ringsData={riskData ? [{ lat: SAN_DIEGO.lat, lng: SAN_DIEGO.lng }] : []}
+            ringsData={riskData ? [{ lat: selectedLocation.lat, lng: selectedLocation.lng }] : []}
             ringLat="lat"
             ringLng="lng"
             ringColor={() => ['rgba(59,130,246,0.6)', 'rgba(59,130,246,0)']}
@@ -209,7 +266,9 @@ export default function Home() {
             <div className="absolute bottom-6 right-6">
               <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 border border-slate-700/50 flex items-center gap-3">
                 <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                <p className="text-sm text-slate-300">Scanning San Diego...</p>
+                <p className="text-sm text-slate-300">
+                  Scanning {selectedLocation?.name || formatCoords(selectedLocation) || 'location'}...
+                </p>
               </div>
             </div>
           )}
@@ -243,8 +302,17 @@ export default function Home() {
           )}
 
           {scanError && (
-            <div className="absolute top-6 left-6 bg-red-900/80 backdrop-blur-xl rounded-2xl p-4 border border-red-700/50">
-              <p className="text-sm text-red-300">{scanError}</p>
+            <div className="absolute top-6 left-6 bg-red-900/80 backdrop-blur-xl rounded-2xl p-4 border border-red-700/50 max-w-sm">
+              <p className="text-sm text-red-300">Scan failed: {scanError}</p>
+              <p className="text-xs text-red-400/80 mt-1">Ensure the backend is running and VITE_API_BASE_URL points to it.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 border-red-600 text-red-200 hover:bg-red-800/50"
+                onClick={() => { setScanError(null); runScan(selectedLocation); }}
+              >
+                Try again
+              </Button>
             </div>
           )}
 
@@ -291,7 +359,12 @@ export default function Home() {
               {/* Modal header */}
               <div className="flex items-center justify-between p-6 border-b border-slate-800">
                 <div>
-                  <h2 className="text-xl font-bold text-white">San Diego Risk Analysis</h2>
+                  <h2 className="text-xl font-bold text-white">
+                    {(selectedLocation?.name || 'Location')} Risk Analysis
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {formatCoords(selectedLocation)}
+                  </p>
                   <p className="text-sm text-slate-400 mt-1">
                     {riskData.meta?.rainfall_used ? `${Math.round(riskData.meta.rainfall_used)} mm rainfall` : ''} · pH {riskData.meta?.soil_ph_used?.toFixed(1)} · {riskData.meta?.biome || "Auto-detected"} biome
                   </p>
