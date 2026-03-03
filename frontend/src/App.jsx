@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from './pages/Home';
+import Home2 from './pages/Home2';
 import HawaiiCaseStudy from './pages/HawaiiCaseStudy';
 import PageNotFound from './lib/PageNotFound';
 
@@ -12,6 +13,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/map" element={<Home2 />} />
           <Route path="/hawaii" element={<HawaiiCaseStudy />} />
           <Route path="*" element={<PageNotFound />} />
         </Routes>
