@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Any
 
 # Test configuration
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8001"
 ENDPOINT = f"{BASE_URL}/api/v1/risk/scan"
 
 # Test cases
@@ -159,6 +159,7 @@ def test_endpoint(test_case: Dict[str, Any], verbose: bool = True) -> bool:
             print(f"   Biome: {biome}")
             print(f"   Species found nearby: {species_nearby}")
             print(f"   Species in ML dataset: {species_in_ml}")
+            print(f"   Species returned: {meta.get('species_returned', 'N/A')}")
             print(f"   Risk scores calculated: {num_results}")
         
         # Show top results

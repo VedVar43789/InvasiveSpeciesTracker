@@ -15,6 +15,7 @@ class RiskResultItem(BaseModel):
     is_invasive: int
     risk_score: float
     risk_label: str
+    found_in_gbif_radius: bool = False
 
 class RiskAnalysisResponse(BaseModel):
     meta: dict

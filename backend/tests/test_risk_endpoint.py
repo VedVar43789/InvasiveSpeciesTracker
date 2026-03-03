@@ -9,7 +9,7 @@ import json
 import sys
 
 # Test configuration
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8001"
 ENDPOINT = f"{BASE_URL}/api/v1/risk/scan"
 
 # Test case: San Francisco coordinates
@@ -59,6 +59,7 @@ def test_endpoint():
         print(f"  - Biome: {meta.get('biome')}")
         print(f"  - Species found nearby: {meta.get('species_found_nearby', 0)}")
         print(f"  - Species in ML dataset: {meta.get('species_in_ml_dataset', 0)}")
+        print(f"  - Species returned: {meta.get('species_returned', 'N/A')}")
         
         # Print results
         results = data.get("results", [])
