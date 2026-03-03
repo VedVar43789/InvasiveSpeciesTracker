@@ -144,7 +144,7 @@ export default function Home2() {
       },
       center: [SAN_DIEGO.lng, SAN_DIEGO.lat],
       zoom: 3,
-      pitch: 0 // remove if you want to see the globe
+      pitch: 45 // remove if you want to see the globe
     });
 
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
@@ -264,8 +264,8 @@ export default function Home2() {
             </div>
 
             <nav className="hidden md:flex items-center gap-8">
-              <Link to="/" className="text-slate-400 text-sm hover:text-white transition-colors">Globe View</Link>
-              <a href="#" className="text-white text-sm font-medium">Map View</a>
+              <a href="#" className="text-white text-sm font-medium">Dashboard</a>
+              <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Species</a>
               <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Reports</a>
               <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
             </nav>
