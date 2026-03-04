@@ -23,5 +23,5 @@ def calculate_risk(ml_df: pd.DataFrame, dynamic_profile: Dict[str, float]) -> Li
     
     results['risk_score'] = scores
     
-    top_risks = results.sort_values('risk_score', ascending=False).head(50)
+    top_risks = results.sort_values('risk_score', ascending=False) #.head(50)
     return top_risks.to_dict(orient='records')
