@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """
-Manual test script for the /risk/scan endpoint
-This tests the endpoint logic without requiring a running server.
-
-Usage:
-    python test_risk_manual.py
+Manual test script for risk components (GBIF, ML load, matching).
+No server required. Run from backend: PYTHONPATH=. python tests/test_risk_manual.py
 """
 
 import sys
 import os
 
-# Add the backend directory to the path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Ensure backend is on path so "app" resolves
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
 
 def test_gbif_function():
     """Test the GBIF fetch function directly"""
@@ -52,8 +51,10 @@ def test_ml_data_loading():
     try:
         from app.db.ml_store import load_ml_data
         
-        # Try to load the ML data
-        ml_df = load_ml_data("../notebooks/vectorized_species_master.csv")
+        # ML data at repo root: notebooks/vectorized_species_master.csv
+        _root_dir = os.path.dirname(_backend_dir)
+        _ml_path = os.path.join(_root_dir, "notebooks", "vectorized_species_master.csv")
+        ml_df = load_ml_data(_ml_path)
         print(f"\n✅ ML data loaded successfully!")
         print(f"   Rows: {len(ml_df)}")
         print(f"   Columns: {len(ml_df.columns)}")
@@ -66,7 +67,7 @@ def test_ml_data_loading():
         return ml_df
     except FileNotFoundError:
         print(f"\n⚠️  ML data file not found at expected path")
-        print(f"   Expected: ../notebooks/vectorized_species_master.csv")
+        print(f"   Expected: <repo_root>/notebooks/vectorized_species_master.csv")
         return None
     except Exception as e:
         print(f"\n❌ Error: {type(e).__name__}: {str(e)}")
@@ -121,10 +122,10 @@ if __name__ == "__main__":
     print("Test Summary")
     print("=" * 60)
     print("\nTo test the full endpoint:")
-    print("1. Start the server: cd backend && uvicorn app.main:app --reload")
-    print("2. Run: python test_risk_endpoint.py")
+    print("1. Start the server: cd backend && PYTHONPATH=. uvicorn app.main:app --reload")
+    print("2. Run: PYTHONPATH=. python tests/test_risk_endpoint.py")
     print("3. Or use curl:")
-    print('   curl -X POST "http://localhost:8000/api/v1/risk/scan" \\')
+    print('   curl -X POST "http://localhost:8001/api/v1/risk/scan" \\')
     print('        -H "Content-Type: application/json" \\')
     print('        -d \'{"lat": 37.7749, "lng": -122.4194, "biome_context": "Grassland", "is_urban": true, "radius_km": 50.0}\'')
     print("\n")

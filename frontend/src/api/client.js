@@ -1,3 +1,4 @@
+// @ts-nocheck
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 async function request(path, options = {}) {
@@ -12,21 +13,24 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-export async function scanRisk({ lat, lng, biome_context, is_urban, radius_km = 50 }) {
+export async function scanRisk({
+  lat,
+  lng,
+  biome_context = null,
+  is_urban = false,
+  radius_km = 50,
+}) {
   return request('/risk/scan', {
     method: 'POST',
     body: JSON.stringify({ lat, lng, biome_context, is_urban, radius_km }),
   });
 }
 
-export async function getSpeciesByLocation({ latitude, longitude, radius_km = 5, limit = 50 }) {
+export async function getSpeciesByLocation({ scientific_name }) {
   const params = new URLSearchParams({
-    latitude: String(latitude),
-    longitude: String(longitude),
-    radius_km: String(radius_km),
-    limit: String(limit),
+    scientific_name: String(scientific_name),
   });
-  return request(`/species/by-location?${params}`);
+  return request(`/species/catalog/lookup?${params}`);
 }
 
 export async function healthCheck() {

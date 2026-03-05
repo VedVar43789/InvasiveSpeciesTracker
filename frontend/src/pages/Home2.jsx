@@ -1,14 +1,17 @@
 // @ts-nocheck
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import Globe from 'react-globe.gl';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Globe2, Bug, AlertTriangle, X, Search, Leaf, Loader2, ArrowRight
+  Globe2, Bug, AlertTriangle, X, Search, Leaf, Loader2, ArrowRight, MapPin
 } from 'lucide-react';
 import { scanRisk } from '@/api/client';
+
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const SAN_DIEGO = { lat: 32.7157, lng: -117.1611, name: "San Diego" };
 
@@ -17,15 +20,50 @@ function formatCoords({ lat, lng }) {
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }
 
-// Build heatmap data from scan results — single point at the selected location
-// with intensity derived from the ratio of high-risk species found.
-function buildHeatmapData(results, location) {
-  if (!results?.length) return [];
+// --- GBIF heatmap (commented out — GBIF Maps API outage) ---
+// async function resolveGbifTaxonKeys(scientificNames) {
+//   const results = await Promise.allSettled(
+//     scientificNames.map(async (name) => {
+//       const res = await fetch(
+//         `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(name)}&kingdom=Plantae`
+//       );
+//       if (!res.ok) return null;
+//       const data = await res.json();
+//       return data.matchType !== 'NONE' ? data.usageKey : null;
+//     })
+//   );
+//   return results
+//     .filter((r) => r.status === 'fulfilled' && r.value != null)
+//     .map((r) => r.value);
+// }
+//
+// function buildGbifTileUrl(taxonKeys) {
+//   const params = new URLSearchParams({
+//     srs: 'EPSG:3857',
+//     style: 'fire.point',
+//   });
+//   taxonKeys.forEach((key) => params.append('taxonKey', String(key)));
+//   return `https://api.gbif.org/v2/map/occurrence/adhoc/{z}/{x}/{y}@1x.png?${params}`;
+// }
 
-  const highCount = results.filter(s => s.risk_label === 'High Risk').length;
-  const intensity = Math.min(highCount / results.length + 0.3, 1.0);
+function buildINatHeatmapUrl(lat, lng, radiusKm = 100, taxonIds = []) {
+  const params = new URLSearchParams({
+    iconic_taxa: 'Plantae',
+    lat: String(lat),
+    lng: String(lng),
+    radius: String(radiusKm),
+    introduced: 'true',
+    endemic: 'false',
+    native: 'false',
+    mappable: 'true',
+    verifiable: 'true',
+  });
 
-  return [{ lat: location.lat, lng: location.lng, intensity }];
+  if (Array.isArray(taxonIds) && taxonIds.length > 0) {
+    params.set('taxon_id', taxonIds.join(','));
+  }
+
+  return `https://api.inaturalist.org/v1/heatmap/{z}/{x}/{y}.png?${params}`;
 }
 
 function getRiskBadgeStyle(label) {
@@ -34,13 +72,15 @@ function getRiskBadgeStyle(label) {
   return 'bg-yellow-500/20 text-yellow-400';
 }
 
-export default function Home() {
-  const globeEl = useRef(null);
+export default function Home2() {
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+  const sdMarkerRef = useRef(null);
   const hasAutoScanned = useRef(false);
 
   const [selectedLocation, setSelectedLocation] = useState(SAN_DIEGO);
   const [riskData, setRiskData] = useState(null);
-  const [heatCloudData, setHeatCloudData] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -50,12 +90,38 @@ export default function Home() {
   const modRiskCount = riskData?.results?.filter(r => r.risk_label === 'Moderate Risk').length ?? 0;
   const speciesCount = riskData?.results?.length ?? 0;
 
-  const runScan = useCallback(async (location = selectedLocation) => {
+  const loadHeatmap = useCallback((location, taxonIds = []) => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const tileUrl = buildINatHeatmapUrl(location.lat, location.lng, 100, taxonIds);
+
+    if (map.getSource('inat-heatmap')) {
+      map.removeLayer('inat-heat');
+      map.removeSource('inat-heatmap');
+    }
+
+    map.addSource('inat-heatmap', {
+      type: 'raster',
+      tiles: [tileUrl],
+      tileSize: 256,
+      attribution: '© <a href="https://www.inaturalist.org">iNaturalist</a>',
+    });
+
+    map.addLayer({
+      id: 'inat-heat',
+      type: 'raster',
+      source: 'inat-heatmap',
+      slot: 'middle',
+      paint: { 'raster-opacity': 0.8 },
+    });
+  }, []);
+
+  const runScan = useCallback(async (location) => {
     if (!location) return;
     setIsScanning(true);
     setScanError(null);
     setRiskData(null);
-    setHeatCloudData([]);
 
     try {
       const data = await scanRisk({
@@ -64,65 +130,120 @@ export default function Home() {
         radius_km: 50,
       });
       setRiskData(data);
-      setHeatCloudData(buildHeatmapData(data.results, location));
+      const taxonIds = data?.meta?.inat_taxon_ids_for_heatmap || [];
+      loadHeatmap(location, taxonIds);
     } catch (err) {
       setScanError(err.message);
     } finally {
       setIsScanning(false);
     }
-  }, [selectedLocation]);
+  }, [loadHeatmap]);
 
   const handlePickLocation = useCallback(async (location, { flyTo = true } = {}) => {
     if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
 
     setExpandedCategory(null);
     setSelectedLocation(location);
+    updateSelectedMarker(location);
 
-    if (flyTo && globeEl.current) {
-      globeEl.current.pointOfView(
-        { lat: location.lat, lng: location.lng, altitude: 0.15 },
-        1200
-      );
+    if (flyTo && mapRef.current) {
+      mapRef.current.flyTo({
+        center: [location.lng, location.lat],
+        zoom: 8,
+        duration: 1200,
+      });
     }
 
     await runScan(location);
     setShowModal(true);
   }, [runScan]);
 
-  const pointsData = useMemo(() => {
-    const base = [SAN_DIEGO];
-    const isSameAsSanDiego =
-      selectedLocation &&
-      selectedLocation.lat === SAN_DIEGO.lat &&
-      selectedLocation.lng === SAN_DIEGO.lng;
-
-    if (!selectedLocation || isSameAsSanDiego) return base;
-    return [...base, { ...selectedLocation, name: selectedLocation.name || 'Selected location' }];
-  }, [selectedLocation]);
-
-  // Auto-zoom and auto-scan on initial mount only
-  useEffect(() => {
-    if (!globeEl.current) return;
-
-    globeEl.current.pointOfView(
-      { lat: SAN_DIEGO.lat, lng: SAN_DIEGO.lng, altitude: 0.15 },
-      2500,
-    );
-
-    const controls = globeEl.current.controls();
-    controls.autoRotate = false;
-    controls.minDistance = 101;
-    controls.maxDistance = 500;
-
-    if (!hasAutoScanned.current) {
-      hasAutoScanned.current = true;
-      setTimeout(() => runScan(SAN_DIEGO), 2200);
+  const updateSelectedMarker = useCallback((location) => {
+    if (markerRef.current) {
+      markerRef.current.setLngLat([location.lng, location.lat]);
     }
-    // We intentionally want this effect to run only once on mount.
+  }, []);
+
+  // Initialize map once
+  useEffect(() => {
+    if (mapRef.current) return;
+
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: 'mapbox://styles/mapbox/standard',
+      projection: 'globe',
+      config: {
+        basemap: {
+          theme: 'default',
+          lightPreset: 'dusk',
+        },
+      },
+      center: [SAN_DIEGO.lng, SAN_DIEGO.lat],
+      zoom: 3,
+      maxZoom: 8, // max zoom before heatmap starts to degrade
+      pitch: 45 // remove if you want to see the globe
+    });
+
+    map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+
+    mapRef.current = map;
+
+    // San Diego permanent marker
+    const sdEl = document.createElement('div');
+    sdEl.style.cssText = 'width:16px;height:16px;background:white;border-radius:50%;border:2px solid rgba(59,130,246,0.8);box-shadow:0 0 8px rgba(59,130,246,0.5);cursor:pointer;';
+    sdMarkerRef.current = new mapboxgl.Marker({ element: sdEl })
+      .setLngLat([SAN_DIEGO.lng, SAN_DIEGO.lat])
+      .setPopup(new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML(
+        '<div style="font-size:13px;font-weight:600;">San Diego</div>' +
+        '<div style="font-size:11px;color:#94a3b8;">Click to scan</div>'
+      ))
+      .addTo(map);
+
+    sdEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handlePickLocationRef.current(SAN_DIEGO);
+    });
+
+    // Selected-location marker (cyan, starts hidden at SD)
+    const selEl = document.createElement('div');
+    selEl.style.cssText = 'width:14px;height:14px;background:rgb(34,211,238);border-radius:50%;border:2px solid rgba(34,211,238,0.4);box-shadow:0 0 10px rgba(34,211,238,0.6);display:none;';
+    markerRef.current = new mapboxgl.Marker({ element: selEl })
+      .setLngLat([SAN_DIEGO.lng, SAN_DIEGO.lat])
+      .addTo(map);
+
+    map.on('load', () => {
+      // Fly to San Diego and auto-scan
+      map.flyTo({ center: [SAN_DIEGO.lng, SAN_DIEGO.lat], zoom: 7, duration: 2500 });
+
+      if (!hasAutoScanned.current) {
+        hasAutoScanned.current = true;
+        setTimeout(() => handlePickLocationRef.current(SAN_DIEGO, { flyTo: false }), 2800);
+      }
+    });
+
+    map.on('click', (e) => {
+      const { lng, lat } = e.lngLat;
+      // Show the selected marker
+      if (markerRef.current) {
+        markerRef.current.getElement().style.display = 'block';
+        markerRef.current.setLngLat([lng, lat]);
+      }
+      handlePickLocationRef.current({ lat, lng, name: 'Selected location' }, { flyTo: false });
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Species lists by category for the modal
+  // Stable ref so map callbacks always see the latest handlePickLocation
+  const handlePickLocationRef = useRef(handlePickLocation);
+  useEffect(() => {
+    handlePickLocationRef.current = handlePickLocation;
+  }, [handlePickLocation]);
+
   const highRiskSpecies = useMemo(() => {
     return (riskData?.results ?? []).filter(r => r.risk_label === 'High Risk');
   }, [riskData]);
@@ -177,93 +298,41 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main content */}
+      {/* Map */}
       <main className="pt-20">
         <div className="h-[calc(100vh-80px)] relative bg-slate-950">
-          <Globe
-            ref={globeEl}
-            globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
-            bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-            backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
-            waitForGlobeReady={true}
+          <div ref={mapContainerRef} className="absolute inset-0" />
 
-            onGlobeClick={({ lat, lng }) => {
-              console.log('GLOBE CLICK', lat, lng);
-              handlePickLocation({ lat, lng, name: 'Selected location' });
-            }}
-            onHeatmapClick={(heatmap, event, coords) => {
-              if (!coords) return;
-              console.log('HEATMAP CLICK', coords.lat, coords.lng);
-              handlePickLocation({ lat: coords.lat, lng: coords.lng, name: 'Selected location' }, { flyTo: false });
-            }}
-
-            pointsData={pointsData}
-
-            onPointClick={(point, event, coords) => {
-              console.log('POINT CLICK', point, coords);
-              handlePickLocation(point);
-            }}
-            pointLat="lat"
-            pointLng="lng"
-            pointColor={d => (d?.name === 'San Diego' ? 'rgba(255,255,255,0.85)' : 'rgba(34,211,238,0.95)')}
-            pointAltitude={() => 0.025}
-            pointRadius={() => 0.35}
-            pointLabel={d => {
-              const title = d?.name || 'Location';
-              const coords = d?.lat != null && d?.lng != null ? formatCoords(d) : '';
-              return (
-                `<div style="background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); padding: 12px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.5);">` +
-                `<div style="color: white; font-weight: 600; font-size: 14px; margin-bottom: 2px;">${title}</div>` +
-                (coords ? `<div style="color: rgba(148, 163, 184, 1); font-size: 12px; margin-bottom: 4px;">${coords}</div>` : '') +
-                `<div style="color: rgba(148, 163, 184, 1); font-size: 12px;">Click to scan this location</div></div>`
-              );
-            }}
-
-            heatmapsData={[heatCloudData]}
-            heatmapPoints={d => d}
-            heatmapPointLat="lat"
-            heatmapPointLng="lng"
-            heatmapPointWeight="intensity"
-            heatmapBandwidth={1.5}
-            heatmapTopAltitude={0.005}
-            heatmapsTransitionDuration={500}
-
-            ringsData={riskData ? [{ lat: selectedLocation.lat, lng: selectedLocation.lng }] : []}
-            ringLat="lat"
-            ringLng="lng"
-            ringColor={() => ['rgba(59,130,246,0.6)', 'rgba(59,130,246,0)']}
-            ringMaxRadius={3}
-            ringPropagationSpeed={2}
-            ringRepeatPeriod={1500}
-
-            atmosphereColor="#87ceeb"
-            atmosphereAltitude={0.15}
-            enablePointerInteraction={true}
-          />
+          {/* Coordinates display */}
+          {selectedLocation && (
+            <div className="absolute top-4 right-4 z-10">
+              <div className="bg-slate-900/90 backdrop-blur-xl rounded-xl px-3 py-2 border border-slate-700/50 flex items-center gap-2">
+                <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-xs text-slate-300 font-mono">
+                  {formatCoords(selectedLocation)}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Legend */}
-          <div className="absolute bottom-6 left-6">
+          <div className="absolute bottom-6 left-6 z-10">
             <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 border border-slate-700/50">
-              <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wider">Threat Level</p>
-              <div className="flex items-center gap-4">
-                {[
-                  { color: 'bg-emerald-500', label: 'Low' },
-                  { color: 'bg-yellow-500', label: 'Medium' },
-                  { color: 'bg-orange-500', label: 'High' },
-                  { color: 'bg-red-500', label: 'Critical' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                    <span className="text-xs text-slate-300">{item.label}</span>
-                  </div>
-                ))}
+              <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wider">Introduced Plant Observations</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-500">Sparse</span>
+                <div className="flex h-2.5 rounded-full overflow-hidden flex-1" style={{
+                  background: 'linear-gradient(to right, rgba(34,197,94,0.9), rgba(250,204,21,0.9), rgba(234,88,12,0.9), rgba(220,38,38,0.95))'
+                }} />
+                <span className="text-[10px] text-slate-500">Dense</span>
               </div>
+              <p className="text-[10px] text-slate-500 mt-2">iNaturalist verified observations · Click anywhere</p>
             </div>
           </div>
 
           {/* Scanning indicator */}
           {isScanning && (
-            <div className="absolute bottom-6 right-6">
+            <div className="absolute bottom-6 right-6 z-10">
               <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 border border-slate-700/50 flex items-center gap-3">
                 <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
                 <p className="text-sm text-slate-300">
@@ -273,9 +342,9 @@ export default function Home() {
             </div>
           )}
 
-          {/* Quick stats (top-left, once loaded) */}
+          {/* Quick stats */}
           {riskData && !isScanning && (
-            <div className="absolute top-6 left-6">
+            <div className="absolute top-6 left-6 z-10">
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -302,7 +371,7 @@ export default function Home() {
           )}
 
           {scanError && (
-            <div className="absolute top-6 left-6 bg-red-900/80 backdrop-blur-xl rounded-2xl p-4 border border-red-700/50 max-w-sm">
+            <div className="absolute top-6 left-6 z-10 bg-red-900/80 backdrop-blur-xl rounded-2xl p-4 border border-red-700/50 max-w-sm">
               <p className="text-sm text-red-300">Scan failed: {scanError}</p>
               <p className="text-xs text-red-400/80 mt-1">Ensure the backend is running and VITE_API_BASE_URL points to it.</p>
               <Button
@@ -317,7 +386,7 @@ export default function Home() {
           )}
 
           {/* Case study nudge */}
-          <Link to="/hawaii" className="absolute bottom-6 right-6 group">
+          <Link to="/hawaii" className="absolute bottom-6 right-6 group z-10">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -344,10 +413,8 @@ export default function Home() {
             className="fixed inset-0 z-50 flex items-center justify-center p-6"
             onClick={() => { setShowModal(false); setExpandedCategory(null); }}
           >
-            {/* Backdrop */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-            {/* Modal */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -374,7 +441,7 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Clickable category cards */}
+              {/* Category cards */}
               <div className="grid grid-cols-3 gap-3 p-6 pb-4">
                 {[
                   { key: 'high', label: 'High Risk', count: highRiskCount, bg: 'bg-red-500/10', border: 'border-red-500/20', activeBorder: 'border-red-500/60', text: 'text-red-400', subtext: 'text-red-400/80' },

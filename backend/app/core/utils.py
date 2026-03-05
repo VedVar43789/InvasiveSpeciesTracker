@@ -1,3 +1,4 @@
+from typing import Dict, Iterable
 import requests
 import numpy as np
 
@@ -92,3 +93,54 @@ def fetch_species_from_gbif(lat: float, lng: float, radius_meters: int = 50000) 
         return results
     except Exception:
         return []
+
+
+# def observation_counts(
+#     taxon_ids: Iterable[int],
+#     lat: float,
+#     lng: float,
+#     radius_km: float = 50.0,
+#     introduced: bool = True,
+#     endemic: bool = False,
+#     native: bool = False,
+#     verifiable: bool = True,
+#     mappable: bool = True,
+# ) -> Dict[int, int]:
+#     """
+#     Return a mapping {inat_taxon_id -> observation_count} for the given IDs
+#     around (lat, lng) within radius_km, using iNaturalist /observations/species_counts.
+#     """
+#     ids = [tid for tid in taxon_ids if tid]
+#     if not ids:
+#         return {}
+
+#     params = {
+#         "taxon_id": ",".join(str(t) for t in ids),
+#         "lat": lat,
+#         "lng": lng,
+#         "radius": radius_km,
+#         "iconic_taxa": "Plantae",
+#         "introduced": str(introduced).lower(),
+#         "endemic": str(endemic).lower(),
+#         "native": str(native).lower(),
+#         "verifiable": str(verifiable).lower(),
+#         "mappable": str(mappable).lower(),
+#         "per_page": 200,
+#     }
+
+#     resp = requests.get(
+#         "https://api.inaturalist.org/v1/observations/species_counts",
+#         params=params,
+#         timeout=10,
+#     )
+#     resp.raise_for_status()
+#     data = resp.json()
+
+#     counts: Dict[int, int] = {}
+#     for r in data.get("results", []):
+#         taxon = r.get("taxon") or {}
+#         tid = taxon.get("id")
+#         if tid is not None:
+#             counts[int(tid)] = int(r.get("count", 0))
+
+#     return counts

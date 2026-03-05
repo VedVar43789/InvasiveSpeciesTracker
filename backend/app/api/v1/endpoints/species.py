@@ -3,77 +3,87 @@ Species endpoint for the Invasive Species Tracker
 '''
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from datetime import datetime
-from bson import ObjectId
 import pandas as pd
 
-# from app.db.mongo import get_db
-from app.schemas.species import SpeciesNearbyOut
-from app.db.csv_store import get_df, query_species_by_location
-
+from app.db.ml_store import get_ml_df
+from app.services.risk_scan import run_risk_scan
 
 router = APIRouter(prefix="/species", tags=["species"])
 
 
-def _to_out(species: dict) -> SpeciesNearbyOut:
-    return SpeciesNearbyOut(
-        id=species.get("id", ""),
-        scientific_name=species.get("scientific_name", ""),
-        common_name=species.get("common_name", ""),
-        family=species.get("family", ""),
-        distance_km=species.get("distance_km", 0),
+def _normalize_scientific_name(name: str) -> str:
+    if not name:
+        return ""
+    return name.split('(')[0].strip().lower()
+
+
+@router.get("/catalog/lookup")
+async def get_species(
+    scientific_name: str = Query(..., description="Scientific name of the species"),
+    ml_df: pd.DataFrame = Depends(get_ml_df),
+):
+    """Get a species by scientific name (catalog lookup from ML dataset)."""
+    row = ml_df[ml_df["scientific_name"] == scientific_name]
+    if row.empty:
+        raise HTTPException(status_code=404, detail="Species not found")
+    return row.iloc[0].to_dict()
+
+
+@router.get("/scan/lookup")
+async def scan_lookup(
+    scientific_name: str = Query(..., description="Scientific name of the species"),
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    radius_km: float = Query(50.0, gt=0, le=1000),
+    biome_context: str | None = Query(None),
+    is_urban: bool = Query(False),
+    ml_df: pd.DataFrame = Depends(get_ml_df),
+):
+    """
+    Get a species with risk context at a location. Runs the risk scan for the
+    given coordinates, then returns the requested species' static data plus
+    risk_score, risk_label, and found_in_gbif_radius for that location.
+    """
+    # Ensure species exists in ML dataset
+    row = ml_df[ml_df["scientific_name"] == scientific_name]
+    if row.empty:
+        raise HTTPException(status_code=404, detail="Species not found")
+
+    scan = run_risk_scan(
+        lat=lat,
+        lng=lng,
+        ml_df=ml_df,
+        radius_km=radius_km,
+        biome_context=biome_context,
+        is_urban=is_urban,
+        return_all_results=True,
     )
 
-@router.get("/by-location", response_model=list[SpeciesNearbyOut])
-async def get_species_by_location(
-    latitude: float = Query(..., ge=-90, le=90, description="Latitude between -90 and 90"),
-    longitude: float = Query(..., ge=-180, le=180, description="Longitude between -180 and 180"),
-    radius_km: float = Query(5.0, gt=0, le=1000, description="Search radius in km (max 1000)"),
-    limit: int = Query(50, ge=1, le=200, description="Max number of results"),
-    df: pd.DataFrame = Depends(get_df),
-):
-    limit = min(max(limit, 1), 200) # pagination limit
+    normalized_target = _normalize_scientific_name(scientific_name)
+    risk_entry = None
+    for r in scan.get("all_results", scan["results"]):
+        if _normalize_scientific_name(r.get("scientific_name", "")) == normalized_target:
+            risk_entry = r
+            break
 
-    # uncomment to use real data from .csv file
-    # return [_to_out(species) for species in query_species_by_location(
-    #     df, latitude, longitude, radius_km, limit)
-    # ]
+    static = row.iloc[0].to_dict()
+    if risk_entry is None:
+        dynamic_risk = {
+            "risk_score": None,
+            "risk_label": None,
+            "found_in_gbif_radius": None,
+            "note": "Species not in filtered risk results (may be present in GBIF radius).",
+        }
+    else:
+        dynamic_risk = {
+            "risk_score": risk_entry["risk_score"],
+            "risk_label": risk_entry["risk_label"],
+            "found_in_gbif_radius": risk_entry["found_in_gbif_radius"],
+        }
 
-    MOCK_SPECIES_NEARBY = [
-        {
-            "id": "ambrosia_artemisiifolia",
-            "scientific_name": "Ambrosia artemisiifolia",
-            "common_name": "Common ragweed",
-            "family": "Asteraceae",
-            "distance_km": 0.42,
-        },
-        {
-            "id": "carpobrotus_edulis",
-            "scientific_name": "Carpobrotus edulis",
-            "common_name": "Ice plant",
-            "family": "Aizoaceae",
-            "distance_km": 1.87,
-        },
-        {
-            "id": "cortaderia_selloana",
-            "scientific_name": "Cortaderia selloana",
-            "common_name": "Pampas grass",
-            "family": "Poaceae",
-            "distance_km": 3.12,
-        },
-        {
-            "id": "arundo_donax",
-            "scientific_name": "Arundo donax",
-            "common_name": "Giant reed",
-            "family": "Poaceae",
-            "distance_km": 6.55,
-        },
-        {
-            "id": "ricinus_communis",
-            "scientific_name": "Ricinus communis",
-            "common_name": "Castor bean",
-            "family": "Euphorbiaceae",
-            "distance_km": 9.98,
-        },
-    ]
-    return [_to_out(species) for species in MOCK_SPECIES_NEARBY]
+    return {
+        "species": static,
+        "location": {"lat": lat, "lng": lng, "biome": biome_context},
+        "meta": scan["meta"],
+        "dynamic_risk": dynamic_risk,
+    }
