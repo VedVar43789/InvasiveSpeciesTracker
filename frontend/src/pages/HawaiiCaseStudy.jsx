@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence, useInView, useScroll, useSpring, useTransform } from 'framer-motion';
+import { motion, useInView, useScroll, useSpring } from 'framer-motion';
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +15,7 @@ import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import {
-  Globe2, Leaf, Bug, ChevronDown, ArrowLeft, Package, Plane, Globe, AlertTriangle
+  Globe2, Leaf, Bug, ArrowLeft, Package, Plane, Globe, AlertTriangle
 } from 'lucide-react';
 
 // ── Citation helper ──────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ function ArrivalTicker() {
 
 function Header() {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-sm border-b border-slate-800/50">
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
@@ -286,7 +286,7 @@ function Header() {
               <Globe2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+              <h1 className="text-xl font-bold text-white">
                 InvasiveWatch
               </h1>
               <p className="text-xs text-slate-500">Global Species Tracker</p>
@@ -303,59 +303,43 @@ function Header() {
   );
 }
 
-function HeroSection() {
+function PageIntro() {
   return (
-    <section className="min-h-screen flex flex-col items-center justify-center relative px-6 pt-20">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(6,182,212,0.08)_0%,_transparent_70%)]" />
-
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1, delay: 0.2 }}
-        className="relative text-center max-w-4xl"
-      >
-        <p className="text-sm uppercase tracking-[0.3em] text-slate-500 mb-6">Case Study</p>
-        <h2 className="text-5xl md:text-7xl font-bold leading-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+    <section className="px-6 pt-8 pb-12 border-b border-slate-800/50">
+      <div className="max-w-4xl mx-auto">
+        <p className="text-xs uppercase tracking-widest text-slate-500 mb-2">Case Study</p>
+        <h2 className="text-3xl md:text-4xl font-bold text-white">
           Hawaii's Silent War
         </h2>
-        <p className="text-2xl md:text-3xl text-slate-500 mt-3 font-light">
+        <p className="text-lg text-slate-500 mt-2">
           One Archipelago. 10,000 Threats.
         </p>
-        <blockquote className="mt-10 text-lg md:text-xl text-slate-400 italic max-w-2xl mx-auto leading-relaxed">
-          "The Hawaiian Islands are the bird extinction capital of the world. Invasive species are the primary cause."
+        <p className="mt-4 text-sm text-slate-400 max-w-2xl leading-relaxed">
+          Hawaii loses species faster than anywhere on Earth — and by the time threats are detected, it's often too late. InvasiveWatch uses predictive modeling to identify high-risk species <em>before</em> they establish, giving agencies the early warning that reactive monitoring can't.
+        </p>
+        <blockquote className="mt-6 text-sm text-slate-400 italic border-l-2 border-slate-700 pl-4 max-w-2xl">
+          "The one process now going on that will take millions of years to correct is the loss of genetic and species diversity by the destruction of natural habitats. This is the folly our descendants are least likely to forgive us."
+          <span className="block mt-1 text-xs text-slate-500 not-italic">— E.O. Wilson, biologist</span>
         </blockquote>
-      </motion.div>
-
-      <motion.div
-        animate={{ y: [0, 8, 0] }}
-        transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
-        className="absolute bottom-10"
-      >
-        <ChevronDown className="w-6 h-6 text-slate-600" />
-      </motion.div>
+      </div>
     </section>
   );
 }
 
 function StatsBar() {
   return (
-    <section className="bg-slate-900/50 border-y border-slate-800/50 py-12 px-6">
-      <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
+    <section className="py-12 px-6">
+      <div className="max-w-4xl mx-auto flex flex-wrap items-baseline gap-x-10 gap-y-6">
         {STATS.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.1, duration: 0.5 }}
-            className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-5 border border-slate-700/50 text-center"
-          >
-            <p className="text-3xl md:text-4xl font-bold text-white">
-              {stat.prefix}<CountUp target={stat.value} />{stat.suffix}
-            </p>
-            <p className="text-sm text-slate-300 mt-1 font-medium">{stat.label}{stat.cite && <Cite href={stat.cite.href} n={stat.cite.n} />}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{stat.sublabel}</p>
-          </motion.div>
+          <React.Fragment key={stat.label}>
+            <div>
+              <p className="text-2xl md:text-3xl font-bold text-white tabular-nums">
+                {stat.prefix}<CountUp target={stat.value} />{stat.suffix}
+              </p>
+              <p className="text-sm text-slate-400 mt-0.5">{stat.label}{stat.cite && <Cite href={stat.cite.href} n={stat.cite.n} />}</p>
+            </div>
+            {i < STATS.length - 1 && <div className="hidden md:block w-px h-10 bg-slate-800" />}
+          </React.Fragment>
         ))}
       </div>
     </section>
@@ -367,14 +351,9 @@ function CrisisSection() {
     <section className="py-24 px-6">
       <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-16">
         <div>
-          <motion.h3
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="text-3xl font-bold text-white mb-8"
-          >
+          <h3 className="text-3xl font-bold text-white mb-8">
             An Archipelago Under Siege
-          </motion.h3>
+          </h3>
           <div className="space-y-5 text-slate-400 leading-relaxed">
             <p>
               Hawaii's geographic isolation made it one of the most biologically unique places on Earth. Over millions of years, species arrived roughly once every 100,000 years by wind, ocean currents, and birds. This extreme isolation produced extraordinary endemism — more than 90% of Hawaii's native species are found nowhere else.<Cite href="https://www.nfwf.org/landscapes/hawaii" n={5} />
@@ -394,19 +373,12 @@ function CrisisSection() {
         <div className="relative pl-8">
           <div className="absolute left-3 top-0 bottom-0 w-px bg-slate-700/50" />
           <div className="space-y-8">
-            {TIMELINE_EVENTS.map((ev, i) => (
-              <motion.div
-                key={ev.year}
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="relative"
-              >
-                <div className={`absolute -left-5 top-1.5 w-3 h-3 rounded-full ${severityColor[ev.severity]} ring-4 ring-slate-950`} />
+            {TIMELINE_EVENTS.map((ev) => (
+              <div key={ev.year} className="relative">
+                <div className={`absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full ${severityColor[ev.severity]}`} />
                 <p className="text-sm font-semibold text-slate-300">{ev.year}</p>
                 <p className="text-sm text-slate-500 mt-1">{ev.event}{ev.cite && <Cite href={ev.cite.href} n={ev.cite.n} />}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -417,38 +389,31 @@ function CrisisSection() {
 
 function SpeciesCard({ species }) {
   return (
-    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-      <div className="flex items-start justify-between mb-2">
+    <div className="py-4">
+      <div className="flex items-start justify-between mb-1">
         <div>
           <h4 className="text-white font-medium">{species.commonName}</h4>
-          <p className="text-xs text-slate-500 italic">{species.scientificName}</p>
+          <p className="text-xs text-slate-500 italic">{species.scientificName} · {species.origin}</p>
         </div>
         <Badge className={getRiskBadgeStyle(species.riskLevel)}>{species.riskLevel}</Badge>
       </div>
-      <Badge className="bg-slate-700/50 text-slate-400 border-0 text-xs mb-3">Origin: {species.origin}</Badge>
-      <p className="text-sm text-slate-400 mb-3">{species.impact}{species.cite && <Cite href={species.cite.href} n={species.cite.n} />}</p>
-      <div className="flex items-center gap-2">
-        <Progress value={species.coveragePercent} className="h-2 flex-1 bg-slate-700" />
-        <span className="text-xs text-slate-500 tabular-nums w-8 text-right">{species.coveragePercent}%</span>
+      <p className="text-sm text-slate-400 mt-2 leading-relaxed">{species.impact}{species.cite && <Cite href={species.cite.href} n={species.cite.n} />}</p>
+      <div className="flex items-center gap-2 mt-3">
+        <Progress value={species.coveragePercent} className="h-1.5 flex-1 bg-slate-800" />
+        <span className="text-xs text-slate-500 tabular-nums">{species.coveragePercent}%</span>
       </div>
-      <p className="text-[10px] text-slate-600 mt-1">Invasion coverage</p>
     </div>
   );
 }
 
 function SpeciesSpotlightSection() {
   return (
-    <section className="py-24 px-6 bg-slate-900/30">
-      <div className="max-w-5xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-center mb-12"
-        >
+    <section className="py-24 px-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-8">
           <h3 className="text-3xl font-bold text-white">Species That Changed Everything</h3>
           <p className="text-slate-500 mt-2">A few of the organisms reshaping Hawaii's ecosystems.</p>
-        </motion.div>
+        </div>
 
         <Tabs defaultValue="plants" className="w-full">
           <TabsList className="bg-slate-800/50 border border-slate-700/50 mx-auto flex w-fit">
@@ -465,7 +430,7 @@ function SpeciesSpotlightSection() {
 
           {Object.entries(SPECIES_DATA).map(([key, species]) => (
             <TabsContent key={key} value={key} className="mt-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="divide-y divide-slate-800/60">
                 {species.map(s => <SpeciesCard key={s.scientificName} species={s} />)}
               </div>
             </TabsContent>
@@ -484,34 +449,25 @@ const chartTooltipStyle = {
 
 function EcologicalImpactSection() {
   return (
-    <section className="py-24 px-6">
+    <section className="py-24 px-6 bg-slate-900/30">
       <div className="max-w-4xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-center mb-10"
-        >
-          <h3 className="text-3xl font-bold text-white">The Inversion</h3>
-          <p className="text-slate-500 mt-2">Native vs. invasive species counts over time</p>
-        </motion.div>
+        <h3 className="text-3xl font-bold text-white mb-2">The Inversion</h3>
+        <p className="text-slate-500 mb-8">Native vs. invasive species counts over time</p>
 
-        <div className="bg-slate-900/50 rounded-2xl border border-slate-700/50 p-6">
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={ECOLOGICAL_DATA} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.4)" />
-              <XAxis dataKey="era" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
-              <Tooltip {...chartTooltipStyle} />
-              <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
-              <Bar dataKey="native" name="Native Species" fill="#22d3ee" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="invasive" name="Invasive Species" fill="#ef4444" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          <p className="text-slate-500 text-sm text-center italic mt-4">
-            For every native species present today, Hawaii has nearly four invasive species competing for the same resources.
-          </p>
-        </div>
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={ECOLOGICAL_DATA} barGap={2}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.4)" />
+            <XAxis dataKey="era" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
+            <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
+            <Tooltip {...chartTooltipStyle} />
+            <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+            <Bar dataKey="native" name="Native Species" fill="#22d3ee" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="invasive" name="Invasive Species" fill="#ef4444" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+        <p className="text-slate-500 text-sm italic mt-4">
+          For every native species present today, Hawaii has nearly four invasive species competing for the same resources.
+        </p>
       </div>
     </section>
   );
@@ -520,33 +476,19 @@ function EcologicalImpactSection() {
 function SpreadMechanicsSection() {
   return (
     <section className="py-24 px-6 bg-slate-900/30">
-      <div className="max-w-5xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-center mb-12"
-        >
-          <h3 className="text-3xl font-bold text-white">How Species Cross the Pacific</h3>
-          <p className="text-slate-500 mt-2">The pathways that keep the invasion accelerating.</p>
-        </motion.div>
+      <div className="max-w-4xl mx-auto">
+        <h3 className="text-3xl font-bold text-white mb-3">How Species Cross the Pacific</h3>
+        <p className="text-slate-500 mb-10">The pathways that keep the invasion accelerating.</p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {PATHWAYS.map((pw, i) => (
-            <motion.div
-              key={pw.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.15 }}
-              className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50"
-            >
-              <div className="p-3 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl w-fit mb-4">
-                <pw.icon className="w-6 h-6 text-cyan-400" />
+        <div className="space-y-6">
+          {PATHWAYS.map((pw) => (
+            <div key={pw.title} className="flex gap-4 items-start">
+              <pw.icon className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="text-base font-medium text-white mb-1">{pw.title}</h4>
+                <p className="text-sm text-slate-400 leading-relaxed">{pw.body}{pw.cite && <Cite href={pw.cite.href} n={pw.cite.n} />}</p>
               </div>
-              <h4 className="text-lg font-semibold text-white mb-2">{pw.title}</h4>
-              <p className="text-sm text-slate-400 leading-relaxed">{pw.body}{pw.cite && <Cite href={pw.cite.href} n={pw.cite.n} />}</p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -558,36 +500,29 @@ function BiodiversityLossSection() {
   return (
     <section className="py-24 px-6">
       <div className="max-w-4xl mx-auto">
-        <motion.blockquote
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-xl md:text-2xl text-slate-300 italic text-center mb-10 leading-relaxed max-w-3xl mx-auto"
-        >
+        <blockquote className="text-lg md:text-xl text-slate-300 italic mb-10 leading-relaxed max-w-3xl border-l-2 border-red-500/40 pl-4">
           "Of the 71 native forest bird species documented at European contact, only 12 survive today. No other place on Earth has lost more bird species in recorded history."
           <Cite href="https://dlnr.hawaii.gov/wildlife/birds/" n={15} />
-        </motion.blockquote>
+        </blockquote>
 
-        <div className="bg-slate-900/50 rounded-2xl border border-slate-700/50 p-6">
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={BIRD_DECLINE_DATA}>
-              <defs>
-                <linearGradient id="birdDecline" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.4)" />
-              <XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} domain={[0, 80]} />
-              <Tooltip {...chartTooltipStyle} />
-              <Area type="monotone" dataKey="species" name="Surviving Species" stroke="#ef4444" fill="url(#birdDecline)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-          <p className="text-slate-600 text-xs text-center mt-4">
-            Data compiled from IUCN Red List, USGS Hawaiian Forest Bird Survey, and State of Hawaii DLNR records.
-          </p>
-        </div>
+        <ResponsiveContainer width="100%" height={300}>
+          <AreaChart data={BIRD_DECLINE_DATA}>
+            <defs>
+              <linearGradient id="birdDecline" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.4)" />
+            <XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
+            <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} domain={[0, 80]} />
+            <Tooltip {...chartTooltipStyle} />
+            <Area type="monotone" dataKey="species" name="Surviving Species" stroke="#ef4444" fill="url(#birdDecline)" strokeWidth={2} />
+          </AreaChart>
+        </ResponsiveContainer>
+        <p className="text-slate-600 text-xs mt-4">
+          Data compiled from IUCN Red List, USGS Hawaiian Forest Bird Survey, and State of Hawaii DLNR records.
+        </p>
       </div>
     </section>
   );
@@ -595,25 +530,20 @@ function BiodiversityLossSection() {
 
 function FailedResponsesSection() {
   return (
-    <section className="py-24 px-6 bg-slate-900/30">
-      <div className="max-w-3xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-center mb-10"
-        >
+    <section className="py-24 px-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-10">
           <h3 className="text-3xl font-bold text-white">Why Conventional Responses Fall Short</h3>
           <p className="text-slate-500 mt-2">Decades of management efforts have yielded local victories — but the systemic threat keeps escalating.</p>
-        </motion.div>
+        </div>
 
-        <Accordion type="multiple" className="space-y-2">
+        <Accordion type="multiple">
           {FAILED_RESPONSES.map((item, i) => (
-            <AccordionItem key={i} value={`item-${i}`} className="border-slate-800/50 bg-slate-800/30 rounded-xl px-4">
-              <AccordionTrigger className="text-white text-left hover:no-underline text-sm md:text-base">
+            <AccordionItem key={i} value={`item-${i}`} className="border-slate-800/40">
+              <AccordionTrigger className="text-white text-left hover:no-underline text-sm md:text-base py-4">
                 {item.title}
               </AccordionTrigger>
-              <AccordionContent className="text-slate-400 text-sm leading-relaxed">
+              <AccordionContent className="text-slate-400 text-sm leading-relaxed pb-4">
                 {item.body}
               </AccordionContent>
             </AccordionItem>
@@ -624,55 +554,41 @@ function FailedResponsesSection() {
   );
 }
 
+const FUNNEL_STAGES = [
+  { label: 'Species Arrives', time: 'Day 0', cost: '$0', dotClass: 'bg-cyan-400', textClass: 'text-cyan-400' },
+  { label: 'Detected', time: '~1 Year', cost: '$4K', dotClass: 'bg-blue-400', textClass: 'text-blue-400' },
+  { label: 'Response Mounted', time: '~3 Years', cost: '$1.2M', dotClass: 'bg-orange-400', textClass: 'text-orange-400' },
+  { label: 'Irreversible', time: '10+ Years', cost: '', dotClass: 'bg-red-400', textClass: 'text-red-400' },
+];
+
 function DataGapSection() {
   return (
-    <section className="py-24 px-6">
-      <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-16 items-center">
-        {/* Radar visualization */}
-        <div className="relative aspect-square max-w-sm mx-auto w-full">
-          {[100, 75, 50, 25].map((size) => (
-            <div
-              key={size}
-              className="absolute border border-slate-700/30 rounded-full"
-              style={{
-                width: `${size}%`, height: `${size}%`,
-                top: `${(100 - size) / 2}%`, left: `${(100 - size) / 2}%`,
-              }}
-            />
-          ))}
-          <motion.div
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-            className="absolute w-3 h-3 bg-cyan-400 rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-lg shadow-cyan-400/50"
-          />
-          {[
-            { top: '15%', left: '60%', delay: 0 },
-            { top: '70%', left: '25%', delay: 1 },
-            { top: '40%', left: '80%', delay: 2 },
-          ].map((dot, i) => (
-            <motion.div
-              key={i}
-              animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
-              transition={{ repeat: Infinity, duration: 3, delay: dot.delay }}
-              className="absolute w-2 h-2 bg-red-400 rounded-full"
-              style={{ top: dot.top, left: dot.left }}
-            />
-          ))}
-          <p className="absolute -bottom-8 left-0 right-0 text-center text-xs text-slate-600">
-            Each pulse represents an undetected species.
-          </p>
-        </div>
+    <section className="py-24 px-6 bg-slate-900/30">
+      <div className="max-w-4xl mx-auto">
+        <h3 className="text-3xl font-bold text-white mb-2">The Surveillance Gap</h3>
+        <p className="text-slate-500 mb-10">Why reactive monitoring fails — and why prediction matters.</p>
 
-        {/* Text */}
-        <div>
-          <motion.h3
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="text-3xl font-bold text-white mb-6"
-          >
-            The Surveillance Gap
-          </motion.h3>
+        <div className="grid md:grid-cols-2 gap-16">
+          {/* Timeline */}
+          <div className="relative pl-6">
+            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-800" />
+            <div className="space-y-8">
+              {FUNNEL_STAGES.map((stage) => (
+                <div key={stage.label} className="relative">
+                  <div className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full ${stage.dotClass}/30 flex items-center justify-center`}>
+                    <div className={`w-2 h-2 rounded-full ${stage.dotClass}`} />
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-sm text-slate-200 font-medium">{stage.label}</p>
+                    {stage.cost && <span className={`text-sm font-bold ${stage.textClass} tabular-nums`}>{stage.cost}</span>}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">{stage.time}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Text */}
           <div className="space-y-4 text-slate-400 leading-relaxed text-sm">
             <p>
               The fundamental problem is that we see the damage long after the invasion becomes irreversible. By the time Rapid Ohia Death was identified in 2014, it had already killed over a million trees. By the time coqui frogs were recognized as a threat, they had established on four islands.
@@ -683,19 +599,6 @@ function DataGapSection() {
             <p>
               The window for effective intervention is narrow. Research suggests a new invasive population can be eradicated for roughly $4,000 if caught within its first year. That cost rises to $1.2 million after three years.<Cite href="https://www.kauaiisc.org/the-cost-of-invasive-species/" n={16} /> After ten years, eradication is typically impossible.
             </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mt-8">
-            {[
-              { cost: '$4K', when: 'If caught in Year 1' },
-              { cost: '$1.2M', when: 'If caught in Year 3' },
-              { cost: '???', when: 'After Year 10' },
-            ].map((item) => (
-              <div key={item.cost} className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-3 text-center">
-                <p className="text-red-400 font-bold text-lg">{item.cost}</p>
-                <p className="text-red-400/60 text-xs mt-0.5">{item.when}</p>
-              </div>
-            ))}
           </div>
         </div>
       </div>
@@ -739,7 +642,7 @@ export default function HawaiiCaseStudy() {
       <ScrollProgressBar />
       <Header />
       <main className="pt-20">
-        <HeroSection />
+        <PageIntro />
         <StatsBar />
         <ArrivalTicker />
         <CrisisSection />
