@@ -6,7 +6,10 @@ Used by POST /risk/scan and by species-in-context lookup.
 import numpy as np
 import pandas as pd
 
-from app.core.utils import fetch_rainfall, derive_biome, estimate_soil_ph, fetch_species_from_gbif
+import requests
+from typing import Iterable, Dict, List
+
+from app.core.utils import fetch_rainfall, derive_biome, estimate_soil_ph, fetch_species_from_gbif #, observation_counts
 from app.ml.risk_engine import calculate_risk
 
 
@@ -89,6 +92,13 @@ def run_risk_scan(
         found_in_radius = normalized in nearby_names
 
         score = row['risk_score']
+
+        tid = row.get("inat_taxon_id", None)
+        if pd.isna(tid):
+            inat_taxon_id = None
+        else:
+            inat_taxon_id = int(tid)
+
         formatted_results.append({
             "scientific_name": row['scientific_name'],
             "common_name": row.get('common_name', "Unknown"),
@@ -96,6 +106,7 @@ def run_risk_scan(
             "risk_score": float(score),
             "risk_label": _risk_score_to_label(score), # Label risk
             "found_in_gbif_radius": found_in_radius,
+            "inat_taxon_id": inat_taxon_id
         })
 
     # Filter out native species found in GBIF radius
@@ -104,6 +115,14 @@ def run_risk_scan(
         filtered_results,
         key=lambda r: -float(r.get("risk_score", 0.0))
     )
+
+    # Collect iNaturalist taxon IDs for high and moderate risk species
+    heatmap_taxon_ids = [
+        int(r["inat_taxon_id"])
+        for r in sorted_results
+        if r.get("inat_taxon_id") is not None
+        and r.get("risk_label") in {"High Risk", "Moderate Risk"}
+    ]
 
     out = {
         "meta": {
@@ -114,6 +133,7 @@ def run_risk_scan(
             "species_in_ml_dataset": len(ml_df),
             "species_tagged_in_radius": sum(1 for r in formatted_results if r["found_in_gbif_radius"]),
             "species_returned": len(sorted_results),
+            "inat_taxon_ids_for_heatmap": heatmap_taxon_ids,
         },
         "results": sorted_results,
     }

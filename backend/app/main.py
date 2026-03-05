@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     import os
     backend_dir = os.path.dirname(os.path.dirname(__file__))  # backend/
     root_dir = os.path.dirname(backend_dir)  # root/
-    ml_data_path = os.path.join(root_dir, "notebooks", "vectorized_species_master.csv")
+    ml_data_path = os.path.join(root_dir, "notebooks", "vectorized_species_master_with_inat_ids.csv")
     ml_df = load_ml_data(ml_data_path)
     set_ml_df(ml_df)
     yield

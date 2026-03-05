@@ -20,31 +20,50 @@ function formatCoords({ lat, lng }) {
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }
 
-function buildHeatmapGeoJSON(results, location) {
-  if (!results?.length || !location) return { type: 'FeatureCollection', features: [] };
+// --- GBIF heatmap (commented out — GBIF Maps API outage) ---
+// async function resolveGbifTaxonKeys(scientificNames) {
+//   const results = await Promise.allSettled(
+//     scientificNames.map(async (name) => {
+//       const res = await fetch(
+//         `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(name)}&kingdom=Plantae`
+//       );
+//       if (!res.ok) return null;
+//       const data = await res.json();
+//       return data.matchType !== 'NONE' ? data.usageKey : null;
+//     })
+//   );
+//   return results
+//     .filter((r) => r.status === 'fulfilled' && r.value != null)
+//     .map((r) => r.value);
+// }
+//
+// function buildGbifTileUrl(taxonKeys) {
+//   const params = new URLSearchParams({
+//     srs: 'EPSG:3857',
+//     style: 'fire.point',
+//   });
+//   taxonKeys.forEach((key) => params.append('taxonKey', String(key)));
+//   return `https://api.gbif.org/v2/map/occurrence/adhoc/{z}/{x}/{y}@1x.png?${params}`;
+// }
 
-  return {
-    type: 'FeatureCollection',
-    features: results.map((species) => {
-      const severity =
-        species.risk_label === 'High Risk' ? 1.0 :
-        species.risk_label === 'Moderate Risk' ? 0.6 : 0.3;
-      const jitter = () => (Math.random() - 0.5) * 0.4;
-      return {
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [location.lng + jitter(), location.lat + jitter()],
-        },
-        properties: {
-          severity,
-          risk_score: species.risk_score,
-          risk_label: species.risk_label,
-          name: species.scientific_name,
-        },
-      };
-    }),
-  };
+function buildINatHeatmapUrl(lat, lng, radiusKm = 100, taxonIds = []) {
+  const params = new URLSearchParams({
+    iconic_taxa: 'Plantae',
+    lat: String(lat),
+    lng: String(lng),
+    radius: String(radiusKm),
+    introduced: 'true',
+    endemic: 'false',
+    native: 'false',
+    mappable: 'true',
+    verifiable: 'true',
+  });
+
+  if (Array.isArray(taxonIds) && taxonIds.length > 0) {
+    params.set('taxon_id', taxonIds.join(','));
+  }
+
+  return `https://api.inaturalist.org/v1/heatmap/{z}/{x}/{y}.png?${params}`;
 }
 
 function getRiskBadgeStyle(label) {
@@ -71,6 +90,33 @@ export default function Home2() {
   const modRiskCount = riskData?.results?.filter(r => r.risk_label === 'Moderate Risk').length ?? 0;
   const speciesCount = riskData?.results?.length ?? 0;
 
+  const loadHeatmap = useCallback((location, taxonIds = []) => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const tileUrl = buildINatHeatmapUrl(location.lat, location.lng, 100, taxonIds);
+
+    if (map.getSource('inat-heatmap')) {
+      map.removeLayer('inat-heat');
+      map.removeSource('inat-heatmap');
+    }
+
+    map.addSource('inat-heatmap', {
+      type: 'raster',
+      tiles: [tileUrl],
+      tileSize: 256,
+      attribution: '© <a href="https://www.inaturalist.org">iNaturalist</a>',
+    });
+
+    map.addLayer({
+      id: 'inat-heat',
+      type: 'raster',
+      source: 'inat-heatmap',
+      slot: 'middle',
+      paint: { 'raster-opacity': 0.8 },
+    });
+  }, []);
+
   const runScan = useCallback(async (location) => {
     if (!location) return;
     setIsScanning(true);
@@ -84,24 +130,14 @@ export default function Home2() {
         radius_km: 50,
       });
       setRiskData(data);
-      updateHeatmap(data.results, location);
+      const taxonIds = data?.meta?.inat_taxon_ids_for_heatmap || [];
+      loadHeatmap(location, taxonIds);
     } catch (err) {
       setScanError(err.message);
     } finally {
       setIsScanning(false);
     }
-  }, []);
-
-  const updateHeatmap = useCallback((results, location) => {
-    const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-
-    const geojson = buildHeatmapGeoJSON(results, location);
-
-    if (map.getSource('scan-results')) {
-      map.getSource('scan-results').setData(geojson);
-    }
-  }, []);
+  }, [loadHeatmap]);
 
   const handlePickLocation = useCallback(async (location, { flyTo = true } = {}) => {
     if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
@@ -144,6 +180,7 @@ export default function Home2() {
       },
       center: [SAN_DIEGO.lng, SAN_DIEGO.lat],
       zoom: 3,
+      maxZoom: 8, // max zoom before heatmap starts to degrade
       pitch: 45 // remove if you want to see the globe
     });
 
@@ -175,32 +212,6 @@ export default function Home2() {
       .addTo(map);
 
     map.on('load', () => {
-      // Empty heatmap source
-      map.addSource('scan-results', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      });
-
-      map.addLayer({
-        id: 'risk-heat',
-        type: 'heatmap',
-        source: 'scan-results',
-        paint: {
-          'heatmap-weight': ['get', 'severity'],
-          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.6, 9, 3],
-          'heatmap-color': [
-            'interpolate', ['linear'], ['heatmap-density'],
-            0, 'rgba(0,0,0,0)',
-            0.15, 'rgba(253,224,71,0.4)',
-            0.4, 'rgba(251,146,60,0.6)',
-            0.65, 'rgba(239,68,68,0.75)',
-            1, 'rgba(220,38,38,0.9)',
-          ],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 4, 6, 30, 12, 60],
-          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 7, 0.85, 14, 0.3],
-        },
-      });
-
       // Fly to San Diego and auto-scan
       map.flyTo({ center: [SAN_DIEGO.lng, SAN_DIEGO.lat], zoom: 7, duration: 2500 });
 
@@ -307,21 +318,15 @@ export default function Home2() {
           {/* Legend */}
           <div className="absolute bottom-6 left-6 z-10">
             <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 border border-slate-700/50">
-              <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wider">Threat Level</p>
-              <div className="flex items-center gap-4">
-                {[
-                  { color: 'bg-yellow-400', label: 'Low' },
-                  { color: 'bg-orange-500', label: 'Medium' },
-                  { color: 'bg-red-500', label: 'High' },
-                  { color: 'bg-red-700', label: 'Critical' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                    <span className="text-xs text-slate-300">{item.label}</span>
-                  </div>
-                ))}
+              <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wider">Introduced Plant Observations</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-500">Sparse</span>
+                <div className="flex h-2.5 rounded-full overflow-hidden flex-1" style={{
+                  background: 'linear-gradient(to right, rgba(34,197,94,0.9), rgba(250,204,21,0.9), rgba(234,88,12,0.9), rgba(220,38,38,0.95))'
+                }} />
+                <span className="text-[10px] text-slate-500">Dense</span>
               </div>
-              <p className="text-[10px] text-slate-500 mt-2">Click anywhere on the map to scan</p>
+              <p className="text-[10px] text-slate-500 mt-2">iNaturalist verified observations · Click anywhere</p>
             </div>
           </div>
 

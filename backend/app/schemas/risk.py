@@ -16,6 +16,7 @@ class RiskResultItem(BaseModel):
     risk_score: float
     risk_label: str
     found_in_gbif_radius: bool = False
+    inat_taxon_id: Optional[int] = None
 
 class RiskAnalysisResponse(BaseModel):
     meta: dict
