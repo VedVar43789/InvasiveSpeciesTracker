@@ -78,9 +78,9 @@ export async function getTrefleTraits(scientific_name) {
   if (!scientific_name) return null;
   
   try {
-    // Call backend proxy endpoint (full path with species prefix)
+    // Call backend proxy endpoint using API_BASE (respects environment config)
     const res = await fetch(
-      `http://localhost:8000/api/v1/species/external/trefle-traits?scientific_name=${encodeURIComponent(String(scientific_name))}`
+      `${API_BASE}/species/external/trefle-traits?scientific_name=${encodeURIComponent(String(scientific_name))}`
     );
     if (!res.ok) return null;
     return res.json();
