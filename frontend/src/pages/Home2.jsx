@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Globe2, Bug, AlertTriangle, X, Search, Leaf, Loader2, ArrowRight, MapPin
 } from 'lucide-react';
-import { scanRisk } from '@/api/client';
+import { scanRisk, getSpeciesByLocation, getINatTaxonProfile, getWikipediaSummary, getTrefleTraits } from '@/api/client';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -78,6 +78,9 @@ export default function Home2() {
   const markerRef = useRef(null);
   const sdMarkerRef = useRef(null);
   const hasAutoScanned = useRef(false);
+  const speciesStaticCacheRef = useRef(new Map());
+  const speciesEnrichmentCacheRef = useRef(new Map());
+  const speciesTrefleCacheRef = useRef(new Map());
 
   const [selectedLocation, setSelectedLocation] = useState(SAN_DIEGO);
   const [riskData, setRiskData] = useState(null);
@@ -85,6 +88,11 @@ export default function Home2() {
   const [scanError, setScanError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
+  const [loadingSpeciesDetail, setLoadingSpeciesDetail] = useState(false);
+  const [loadingEnrichment, setLoadingEnrichment] = useState(false);
+  const [loadingTrefle, setLoadingTrefle] = useState(false);
 
   const highRiskCount = riskData?.results?.filter(r => r.risk_label === 'High Risk').length ?? 0;
   const modRiskCount = riskData?.results?.filter(r => r.risk_label === 'Moderate Risk').length ?? 0;
@@ -256,6 +264,94 @@ export default function Home2() {
     return (riskData?.results ?? []).filter(r => r.risk_label === 'Low Risk');
   }, [riskData]);
 
+  // Filter all species by search query
+  const allSpecies = useMemo(() => {
+    return riskData?.results ?? [];
+  }, [riskData]);
+
+  const filteredSpecies = useMemo(() => {
+    if (!searchQuery.trim()) return allSpecies;
+    const query = searchQuery.toLowerCase();
+    return allSpecies.filter(s => 
+      s.common_name?.toLowerCase().includes(query) || 
+      s.scientific_name?.toLowerCase().includes(query)
+    );
+  }, [allSpecies, searchQuery]);
+
+  // Fetch detailed species info from catalog
+  const handleSpeciesClick = useCallback(async (species) => {
+    setLoadingSpeciesDetail(true);
+    // Reset enrichment/traits loading flags when starting a new selection
+    setLoadingEnrichment(false);
+    setLoadingTrefle(false);
+
+    const speciesKey = species.scientific_name;
+    const dynamicRisk = {
+      risk_score: species.risk_score,
+      risk_label: species.risk_label,
+      found_in_gbif_radius: species.found_in_gbif_radius,
+    };
+
+    try {
+      const cachedStatic = speciesStaticCacheRef.current.get(speciesKey);
+      const catalogData = cachedStatic || await getSpeciesByLocation({ scientific_name: species.scientific_name });
+      if (!cachedStatic) {
+        speciesStaticCacheRef.current.set(speciesKey, catalogData);
+      }
+
+      const cachedEnrichment = speciesEnrichmentCacheRef.current.get(speciesKey) || null;
+
+      setSelectedSpeciesDetail({
+        species: catalogData,
+        dynamic_risk: dynamicRisk,
+        enrichment: cachedEnrichment,
+        trefle: null,
+      });
+      setLoadingSpeciesDetail(false);
+
+      if (!cachedEnrichment) {
+        setLoadingEnrichment(true);
+        const inatProfile = await getINatTaxonProfile(catalogData?.inat_taxon_id);
+        const fallbackWiki = inatProfile ? null : await getWikipediaSummary(catalogData?.scientific_name || species.scientific_name);
+        const enrichment = inatProfile || fallbackWiki || null;
+
+        speciesEnrichmentCacheRef.current.set(speciesKey, enrichment);
+
+        setSelectedSpeciesDetail((prev) => {
+          if (!prev?.species || prev.species.scientific_name !== speciesKey) return prev;
+          return { ...prev, enrichment };
+        });
+      }
+
+      // Fetch Trefle data for accurate pH and native regions
+      const cachedTrefle = speciesTrefleCacheRef.current.get(speciesKey);
+      if (!cachedTrefle) {
+        setLoadingTrefle(true);
+        const trefleData = await getTrefleTraits(catalogData?.scientific_name || species.scientific_name);
+        if (trefleData) {
+          speciesTrefleCacheRef.current.set(speciesKey, trefleData);
+          setSelectedSpeciesDetail((prev) => {
+            if (!prev?.species || prev.species.scientific_name !== speciesKey) return prev;
+            return { ...prev, trefle: trefleData };
+          });
+        }
+        setLoadingTrefle(false);
+      } else {
+        setSelectedSpeciesDetail((prev) => {
+          if (!prev?.species || prev.species.scientific_name !== speciesKey) return prev;
+          return { ...prev, trefle: cachedTrefle };
+        });
+      }
+
+      setLoadingEnrichment(false);
+    } catch (err) {
+      console.error('Failed to fetch species detail:', err);
+      setLoadingSpeciesDetail(false);
+      setLoadingEnrichment(false);
+      setLoadingTrefle(false);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-hidden">
       {/* Header */}
@@ -420,7 +516,7 @@ export default function Home2() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", damping: 25 }}
-              className="relative bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden"
+              className="relative bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
               {/* Modal header */}
@@ -436,12 +532,283 @@ export default function Home2() {
                     {riskData.meta?.rainfall_used ? `${Math.round(riskData.meta.rainfall_used)} mm rainfall` : ''} · pH {riskData.meta?.soil_ph_used?.toFixed(1)} · {riskData.meta?.biome || "Auto-detected"} biome
                   </p>
                 </div>
-                <button onClick={() => { setShowModal(false); setExpandedCategory(null); }} className="text-slate-400 hover:text-white transition-colors p-1">
+                <button onClick={() => { setShowModal(false); setExpandedCategory(null); setSearchQuery(''); setSelectedSpeciesDetail(null); }} className="text-slate-400 hover:text-white transition-colors p-1">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Category cards */}
+              {/* Search input */}
+              {!selectedSpeciesDetail && (
+                <div className="px-6 py-4 border-b border-slate-800">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <input
+                      type="text"
+                      placeholder="Search species by common or scientific name..."
+                      value={searchQuery}
+                      onChange={(e) => { setSearchQuery(e.target.value); setExpandedCategory(null); }}
+                      className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Category cards OR search results OR species detail */}
+              {selectedSpeciesDetail ? (
+                // Species detail view
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="px-6 py-4 overflow-y-auto max-h-[calc(80vh-280px)]"
+                >
+                  <button
+                    onClick={() => setSelectedSpeciesDetail(null)}
+                    className="text-xs text-slate-400 hover:text-white mb-4 flex items-center gap-1 transition-colors"
+                  >
+                    ← Back to results
+                  </button>
+                  
+                  <div className="space-y-4">
+                    {/* Species name */}
+                    <div>
+                      <h3 className="text-lg font-bold text-white">
+                        {selectedSpeciesDetail.enrichment?.preferred_common_name || selectedSpeciesDetail.species?.common_name || selectedSpeciesDetail.species?.scientific_name}
+                      </h3>
+                      {selectedSpeciesDetail.enrichment?.subtitle && (
+                        <p className="text-xs text-slate-500 mt-1">{selectedSpeciesDetail.enrichment.subtitle}</p>
+                      )}
+                      <p className="text-sm text-slate-400 italic">{selectedSpeciesDetail.species?.scientific_name}</p>
+                    </div>
+
+                    {/* Hero image */}
+                    {loadingEnrichment ? (
+                      <div className="rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/40 h-48 flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                          <p className="text-xs text-slate-500">Loading image...</p>
+                        </div>
+                      </div>
+                    ) : selectedSpeciesDetail.enrichment?.hero_image_url ? (
+                      <div className="rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/40">
+                        <img
+                          src={selectedSpeciesDetail.enrichment.hero_image_url}
+                          alt={selectedSpeciesDetail.species?.scientific_name || 'Plant image'}
+                          className="w-full h-48 object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : null}
+
+                    {/* Story */}
+                    {loadingEnrichment ? (
+                      <div className="bg-slate-800/30 rounded-lg p-4 space-y-2">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider">Story</p>
+                        <div className="space-y-2">
+                          <div className="h-4 bg-slate-700/50 rounded w-full animate-pulse" />
+                          <div className="h-4 bg-slate-700/50 rounded w-5/6 animate-pulse" />
+                          <div className="h-4 bg-slate-700/50 rounded w-4/5 animate-pulse" />
+                        </div>
+                      </div>
+                    ) : selectedSpeciesDetail.enrichment?.story ? (
+                      <div className="bg-slate-800/30 rounded-lg p-4 space-y-2">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider">Story</p>
+                        <p className="text-sm text-slate-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: selectedSpeciesDetail.enrichment.story }} />
+                      </div>
+                    ) : null}
+
+                    {/* Risk info for this location */}
+                    {selectedSpeciesDetail.dynamic_risk && (
+                      <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Risk at this location</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Badge className={`border-0 ${getRiskBadgeStyle(selectedSpeciesDetail.dynamic_risk.risk_label)}`}>
+                              {selectedSpeciesDetail.dynamic_risk.risk_label || 'Unknown'}
+                            </Badge>
+                            <p className="text-2xl font-bold text-white mt-2">
+                              {selectedSpeciesDetail.dynamic_risk.risk_score !== null 
+                                ? `${(selectedSpeciesDetail.dynamic_risk.risk_score * 100).toFixed(0)}%`
+                                : 'N/A'
+                              }
+                            </p>
+                          </div>
+                          <div className="text-sm text-slate-300 space-y-1">
+                            {selectedSpeciesDetail.dynamic_risk.found_in_gbif_radius && <p>✓ Observed nearby</p>}
+                            {selectedSpeciesDetail.species?.is_invasive && <p>✓ Listed invasive</p>}
+                            {selectedSpeciesDetail.enrichment?.introduced === true && <p>✓ Non-native (introduced)</p>}
+                            {selectedSpeciesDetail.enrichment?.native === true && <p>✓ Native species</p>}
+                            {selectedSpeciesDetail.enrichment?.threatened === true && <p>⚠ Threatened status</p>}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Community rarity */}
+                    {typeof selectedSpeciesDetail.enrichment?.observations_count === 'number' && (
+                      <div className="bg-slate-800/30 rounded-lg p-4">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Community Rarity</p>
+                        <p className="text-sm text-slate-300 font-medium">
+                          {selectedSpeciesDetail.enrichment.observations_count.toLocaleString()} observations
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Characteristics - Use clean decoded fields from backend */}
+                    {selectedSpeciesDetail.species && (() => {
+                      const species = selectedSpeciesDetail.species;
+                      
+                      return (
+                        <div className="space-y-4">
+                          {/* Growth characteristics */}
+                          <div className="bg-slate-800/30 rounded-lg p-4 space-y-3">
+                            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Growth Characteristics</p>
+                            {species.habit && species.habit !== "Unknown" && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-500">Growth Habit</span>
+                                <span className="text-sm text-slate-300 font-medium">{species.habit}</span>
+                              </div>
+                            )}
+                            {species.growth_rate && species.growth_rate !== "Unknown" && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-500">Growth Rate</span>
+                                <span className="text-sm text-slate-300 font-medium">{species.growth_rate}</span>
+                              </div>
+                            )}
+                            {species.spreads_vegetatively && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-500">Spreads Vegetatively</span>
+                                <span className="text-sm text-slate-300 font-medium">✓ Yes</span>
+                              </div>
+                            )}
+                            {species.animal_dispersal && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-500">Animal Dispersal</span>
+                                <span className="text-sm text-slate-300 font-medium">✓ Yes</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Environmental tolerances */}
+                          {loadingTrefle ? (
+                            <div className="bg-slate-800/30 rounded-lg p-4 space-y-3">
+                              <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Environmental Tolerances</p>
+                              <div className="space-y-2">
+                                <div className="h-4 bg-slate-700/50 rounded w-full animate-pulse" />
+                                <div className="h-4 bg-slate-700/50 rounded w-4/5 animate-pulse" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-slate-800/30 rounded-lg p-4 space-y-3">
+                              <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Environmental Tolerances</p>
+                          {species.ph_minimum !== undefined && species.ph_minimum !== null && !selectedSpeciesDetail.trefle?.phMin && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-slate-500">pH Range Min</span>
+                              <span className="text-sm text-slate-300 font-medium">{(parseFloat(species.ph_minimum) * 14).toFixed(1)}</span>
+                            </div>
+                          )}
+                          {species.ph_maximum !== undefined && species.ph_maximum !== null && !selectedSpeciesDetail.trefle?.phMax && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-slate-500">pH Range Max</span>
+                              <span className="text-sm text-slate-300 font-medium">{(parseFloat(species.ph_maximum) * 14).toFixed(1)}</span>
+                              </div>
+                            )}
+                            {species.light_level && species.light_level !== "Unknown" && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-500">Light Requirement</span>
+                                <span className="text-sm text-slate-300 font-medium">{species.light_level}</span>
+                              </div>
+                            )}
+                            
+                            {/* Trefle pH if available */}
+                            {selectedSpeciesDetail.trefle?.phMin !== null && selectedSpeciesDetail.trefle?.phMin !== undefined && (
+                              <div className="flex justify-between items-center border-t border-slate-700/50 pt-3 mt-3">
+                                <span className="text-xs text-slate-500">pH Range</span>
+                                <span className="text-sm text-slate-300 font-medium">
+                                  {selectedSpeciesDetail.trefle.phMin} - {selectedSpeciesDetail.trefle.phMax}
+                                </span>
+                              </div>
+                            )}
+                            </div>
+                          )}
+
+                          {/* Geographic info */}
+                          {loadingTrefle ? (
+                            <div className="bg-slate-800/30 rounded-lg p-4">
+                              <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Native Regions</p>
+                              <div className="h-4 bg-slate-700/50 rounded w-full animate-pulse" />
+                            </div>
+                          ) : (
+                            <>
+                              {species.native_region_count !== undefined && species.native_region_count !== null && !selectedSpeciesDetail.trefle?.nativeRegions && (
+                                <div className="bg-slate-800/30 rounded-lg p-4">
+                                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Native Regions</p>
+                                  <p className="text-sm text-slate-300 font-medium">{Math.round(species.native_region_count)} regions</p>
+                                </div>
+                              )}
+                              
+                              {/* Trefle native regions if available */}
+                              {selectedSpeciesDetail.trefle?.nativeRegions && selectedSpeciesDetail.trefle.nativeRegions !== "Unknown" && (
+                                <div className="bg-slate-800/30 rounded-lg p-4">
+                                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Native Regions</p>
+                                  <p className="text-sm text-slate-300 font-medium">{selectedSpeciesDetail.trefle.nativeRegions}</p>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </motion.div>
+              ) : searchQuery.trim() ? (
+                // Search results
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="px-6 py-4 overflow-y-auto max-h-[calc(80vh-280px)]"
+                >
+                  <p className="text-sm text-slate-400 mb-4">
+                    Found <span className="font-semibold text-white">{filteredSpecies.length}</span> species
+                  </p>
+                  <div className="space-y-2">
+                    {filteredSpecies.length > 0 ? (
+                      filteredSpecies.map((s) => (
+                        <button
+                          key={s.scientific_name}
+                          onClick={() => handleSpeciesClick(s)}
+                          disabled={loadingSpeciesDetail}
+                          className="w-full bg-slate-800/50 hover:bg-slate-800/80 disabled:opacity-50 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all text-left"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="text-white font-medium">
+                                {s.common_name !== "Unknown" ? s.common_name : s.scientific_name}
+                              </h4>
+                              <p className="text-xs text-slate-500 italic">{s.scientific_name}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 ml-2">
+                              <Badge className={`border-0 ${getRiskBadgeStyle(s.risk_label)}`}>
+                                {s.risk_label}
+                              </Badge>
+                              <span className="text-xs text-slate-500">
+                                {(s.risk_score * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-4 rounded-xl border border-dashed border-slate-700 text-center">
+                        <p className="text-sm text-slate-500">No species found matching "{searchQuery}"</p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ) : (
+                // Category view (default)
+                <>
+                  {/* Category cards */}
               <div className="grid grid-cols-3 gap-3 p-6 pb-4">
                 {[
                   { key: 'high', label: 'High Risk', count: highRiskCount, bg: 'bg-red-500/10', border: 'border-red-500/20', activeBorder: 'border-red-500/60', text: 'text-red-400', subtext: 'text-red-400/80' },
@@ -485,9 +852,11 @@ export default function Home2() {
                       </div>
                       <div className="px-6 pb-6 overflow-y-auto max-h-[35vh] space-y-2">
                         {species.length > 0 ? species.map((s) => (
-                          <div
+                          <button
                             key={s.scientific_name}
-                            className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50"
+                            onClick={() => handleSpeciesClick(s)}
+                            disabled={loadingSpeciesDetail}
+                            className="w-full bg-slate-800/50 hover:bg-slate-800/80 disabled:opacity-50 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all text-left"
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
@@ -517,7 +886,7 @@ export default function Home2() {
                                 </span>
                               </div>
                             </div>
-                          </div>
+                          </button>
                         )) : (
                           <div className="p-4 rounded-xl border border-dashed border-slate-700 text-center">
                             <p className="text-sm text-slate-500">No {label.toLowerCase()} species detected</p>
@@ -528,6 +897,8 @@ export default function Home2() {
                   );
                 })()}
               </AnimatePresence>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
