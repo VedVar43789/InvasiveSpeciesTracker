@@ -76,8 +76,8 @@ def run_risk_scan(
 
     # Favor plants that spread rapidly and vegetatively, and are dispersed by animals
     dynamic_profile['growth_rate_Rapid'] = 1.0
-    dynamic_profile['reproduction_Vegetative'] = 1.0
-    dynamic_profile['dispersal_Animal'] = 1.0
+    #dynamic_profile['reproduction_Vegetative'] = 1.0
+    #dynamic_profile['dispersal_Animal'] = 1.0
 
     # Calculate risk
     raw_results = calculate_risk(ml_df, dynamic_profile)
