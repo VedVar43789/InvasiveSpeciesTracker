@@ -281,6 +281,9 @@ export default function Home2() {
   // Fetch detailed species info from catalog
   const handleSpeciesClick = useCallback(async (species) => {
     setLoadingSpeciesDetail(true);
+    // Reset enrichment/traits loading flags when starting a new selection
+    setLoadingEnrichment(false);
+    setLoadingTrefle(false);
 
     const speciesKey = species.scientific_name;
     const dynamicRisk = {
