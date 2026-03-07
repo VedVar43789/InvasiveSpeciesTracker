@@ -171,8 +171,8 @@ export default function Home2() {
       if (speciesName) {
         const normalizedQuery = speciesName.toLowerCase().trim();
         const found = data?.results?.find(r => 
-          r.scientific_name?.toLowerCase().includes(normalizedQuery) ||
-          r.common_name?.toLowerCase().includes(normalizedQuery)
+          r.scientific_name?.toLowerCase()?.includes(normalizedQuery) ||
+          r.common_name?.toLowerCase()?.includes(normalizedQuery)
         );
         
         if (found) {
