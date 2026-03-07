@@ -1,6 +1,6 @@
 # Invasive Species Tracker
 
-A **FARM stack** (FastAPI, React, MongoDB) application that assesses invasive species risk at any location: interactive map, location-based risk scan, species catalog and detail (iNaturalist, Wikipedia, Trefle), and a Hawaii case study with static charts and narrative.
+A **FastAPI + React (Vite)** application: **Landing** at `/`, **Dashboard** at `/dashboard` (interactive map, location-based risk scan, species catalog and detail with iNaturalist/Wikipedia/Trefle), and **Research** at `/hawaii` with case studies (Hawaii: time-slider invasive spread heatmap; New Zealand: mammal crisis narrative and charts).
 
 ---
 
@@ -19,7 +19,7 @@ A **FARM stack** (FastAPI, React, MongoDB) application that assesses invasive sp
 
 ## Architecture
 
-The app is built on the **FARM stack** (FastAPI, React, MongoDB): a FastAPI backend and a React (Vite) frontend. When you run a risk scan from the map, the frontend sends the chosen coordinates to the backend, which fetches climate data (rainfall, temperature) from Open-Meteo and derives a biome and soil pH for that location. That “dynamic profile” is compared against a plant dataset using risk scoring, while GBIF is queried to see which species are already recorded in the area. The API returns a ranked list of potential invaders—species that score high for the location but are *not* yet present in the GBIF radius—so the UI can highlight what might newly establish there. The ML dataset and feature means live in the repo under `notebooks/`; an optional species-by-location CSV can sit in `backend/app/db/`. MongoDB is available via Docker Compose but is not used in the current flow; data is served from CSV and in-memory DataFrames.
+The app is built on **FastAPI** and **React (Vite)**: a FastAPI backend and a React frontend. When you run a risk scan from the map, the frontend sends the chosen coordinates to the backend, which fetches climate data (rainfall, temperature) from Open-Meteo and derives a biome and soil pH for that location. That “dynamic profile” is compared against a plant dataset using risk scoring, while GBIF is queried to see which species are already recorded in the area. The API returns a ranked list of potential invaders—species that score high for the location but are *not* yet present in the GBIF radius—so the UI can highlight what might newly establish there. The ML dataset and feature means live in the repo under `notebooks/`; an optional species-by-location CSV can sit in `backend/app/db/`. Data is served from the FAISS index, CSVs, and in-memory DataFrames.
 
 ```mermaid
 flowchart LR
@@ -29,11 +29,12 @@ flowchart LR
   RiskScan --> RiskEngine[ML Risk Engine]
   RiskScan --> GBIF[GBIF API]
   RiskScan --> Utils[Open-Meteo / utils]
-  RiskEngine --> MLData[ML CSV + feature_means.json]
+  RiskEngine --> MLData[FAISS + plants_metadata + feature_means]
   Utils --> OpenMeteo[Open-Meteo API]
+  Frontend --> ExtAPIs[iNaturalist / Mapbox / Trefle / Wikipedia]
 ```
 
-
+The Dashboard uses Mapbox with an iNaturalist heatmap; the Research page uses preloaded Hawaii GeoJSON and Mapbox for the time-slider invasive spread heatmap.
 
 ---
 
@@ -54,19 +55,20 @@ InvasiveSpeciesTracker/
 ├── frontend/                 # React 18 + Vite, Tailwind, shadcn-style UI
 │   └── src/
 │       ├── api/              # API client (risk scan, species, Trefle, iNat, Wikipedia)
-│       ├── pages/             # Home2 (map, risk, species), HawaiiCaseStudy
-│       └── components/ui/     # Shared UI components
+│       ├── assets/hawaii/    # hawaii-observations-all.json, hawaii-islands.geojson
+│       ├── pages/             # Landing, Home2 (Dashboard), HawaiiCaseStudy (Research with tabs)
+│       ├── components/case-studies/  # HawaiiTab, NewZealandTab, NZReclamationMap, etc.
+│       └── components/ui/    # Shared UI components
 ├── notebooks/                # Risk inference and PCA analysis
 │   ├── RiskScore.ipynb       # Risk model
 │   ├── PCA.ipynb             # Feature analysis
 │   ├── feature_means.json    # Used by risk engine to center dynamic profile
 │   ├── plants_climate_4d.faiss # 4D FAISS vector index (Tracked via Git LFS)
 │   ├── plants_metadata.csv   # Taxonomic metadata and traits (Tracked via Git LFS)
+│   ├── vectorized_species_master*.csv  # Optional; for notebook work
 │   └── add_inat_taxon_ids.py # Script to attach iNaturalist taxon IDs
-├── infra/
-│   └── docker-compose.yml    # MongoDB
 ├── Dockerfile                # Backend + notebooks image
-└── Makefile                 # mongo-up, mongo-down, api, test
+└── Makefile                 # api, test
 ```
 
 ---
@@ -85,12 +87,15 @@ For a given `(lat, lng)`, the backend fetches rainfall and temperature from **Op
 - **Subspecies Deduplicator & Smart Payload**  
 To maintain high performance and UI clarity while processing 96k species, the engine strips out redundant subspecies clones. Instead of sending massive, browser-crashing arrays, the backend returns a scalable **Dashboard Object** containing total risk counts, frequency distribution, and a targeted top-threat list.
 
+- **Dashboard Heatmap & Synthetic Observations**  
+The Dashboard shows an iNaturalist heatmap for introduced plants near the scan area. In low-observation areas, the UI can display synthetic observation distributions (with an is-on-water check) for a smoother UX.
+
 ---
 
 ## Prerequisites
 
-- **With Docker:** [Docker](https://docs.docker.com/get-docker/) and Docker Compose (runs backend, frontend, and MongoDB).
-- **Without Docker:** **Python 3.10+** (3.11 recommended), **Node.js**, and **MongoDB** (installed and running locally; default `mongodb://localhost:27017`).
+- **With Docker:** [Docker](https://docs.docker.com/get-docker/) and Docker Compose (runs backend and frontend).
+- **Without Docker:** **Python 3.10+** (3.11 recommended) and **Node.js**.
 
 ---
 
@@ -113,7 +118,6 @@ Relevant variables (see [backend/app/core/config.py](backend/app/core/config.py)
 | `ENV`              | e.g. `dev`                                                                                                 |
 | `API_V1_PREFIX`    | API prefix (default: `/api/v1`)                                                                            |
 | `CORS_ORIGINS`     | Comma-separated allowed origins for CORS (e.g. `http://localhost:5173` for local Vite dev; default empty) |
-| `MONGO_URI`        | MongoDB connection (default: `mongodb://localhost:27017`); not used in current flow                        |
 | `SPECIES_CSV_PATH` | Path to species-by-location CSV (e.g. `data/invasive_species.csv`)                                         |
 
 
@@ -138,7 +142,7 @@ Without a valid `VITE_MAPBOX_TOKEN`, the map view may not work.
 
 ## With Docker
 
-If you have [Docker](https://docs.docker.com/get-docker/) and Docker Compose installed, you can run the whole stack (backend, frontend, and **MongoDB**) from the project directory.
+If you have [Docker](https://docs.docker.com/get-docker/) and Docker Compose installed, you can run the whole stack (backend and frontend) from the project directory.
 
 **Install frontend dependencies and build images:**
 
@@ -150,7 +154,9 @@ docker compose run frontend npm install
 docker compose build
 ```
 
-**Start the development cluster (backend, frontend, and MongoDB):**
+The Docker build fetches `plants_climate_4d.faiss` and `plants_metadata.csv` from Supabase so the backend risk engine works without local ML files.
+
+**Start the development cluster (backend and frontend):**
 
 ```bash
 docker compose up
@@ -169,17 +175,19 @@ Then open:
 
 Use the steps below on any platform (Windows, macOS, Linux). Configure `.env` first (see [Environment and .env](#environment-and-env)).
 
-### 1. MongoDB
+### ML data (required for risk scan)
 
-Install and run **MongoDB** on your machine:
+The risk engine needs the FAISS index and plant metadata in `notebooks/`. These are the same files the Docker build pulls from Supabase. From the project root, download them once:
 
-- **macOS:** `brew tap mongodb/brew && brew install mongodb-community`, then `brew services start mongodb-community`
-- **Windows:** [MongoDB Community Server](https://www.mongodb.com/try/download/community) — install and start the service
-- **Linux:** See [Install MongoDB](https://www.mongodb.com/docs/manual/installation/); e.g. on Ubuntu `sudo systemctl start mongod`
+```bash
+curl -L -o notebooks/plants_climate_4d.faiss \
+  "https://kvffocupazyduunrsayh.supabase.co/storage/v1/object/public/invasivespecies/plants_climate_4d.faiss"
 
-The backend expects `mongodb://localhost:27017` by default (set `MONGO_URI` in `backend/.env` if yours differs).
+curl -L -o notebooks/plants_metadata.csv \
+  "https://kvffocupazyduunrsayh.supabase.co/storage/v1/object/public/invasivespecies/plants_metadata.csv"
+```
 
-### 2. Backend
+### 1. Backend
 
 The backend uses **Python 3.10** and expects `notebooks/` at the repo root. From the project root:
 
@@ -201,11 +209,10 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --app-dir .
 ```
 
-Ensure **ML data** is present: `notebooks/vectorized_species_master_with_inat_ids.csv`, `notebooks/feature_means.json`. Optionally add `backend/app/db/invasive_species.csv` (columns: `latitude`, `longitude`, `scientific_name`, `common_name`, `family`). Copy `backend/.env.example` to `backend/.env` and edit as needed.
 
 - API: **[http://localhost:8000](http://localhost:8000)** — Health: **[http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)**
 
-### 3. Frontend
+### 2. Frontend
 
 In another terminal, from the project root:
 
@@ -219,7 +226,7 @@ Copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL` (e.g
 
 ---
 
-**Optional (macOS/Linux):** Use the [Makefile](Makefile): `make api` for the backend (then `cd frontend && npm run dev`). Targets: `mongo-up`, `mongo-down`, `api`, `test`.
+**Optional (macOS/Linux):** Use the [Makefile](Makefile): `make api` for the backend (then `cd frontend && npm run dev`). Targets: `api`, `test`.
 
 ---
 
@@ -241,10 +248,11 @@ Copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL` (e.g
 
 | Path | Description |
 |------|-------------|
-| [frontend/src/App.jsx](frontend/src/App.jsx) | Routes: `/` (Home), `/hawaii` (Hawaii case study), catch-all 404 |
-| [frontend/src/pages/Home2.jsx](frontend/src/pages/Home2.jsx) | Map (Mapbox), risk scan, species list and detail (catalog, iNaturalist, Wikipedia, Trefle) |
-| [frontend/src/pages/HawaiiCaseStudy.jsx](frontend/src/pages/HawaiiCaseStudy.jsx) | Static charts and narrative (Recharts, etc.) |
-| [frontend/src/api/client.js](frontend/src/api/client.js) | Backend and external API calls (risk scan, species, Trefle, iNaturalist, Wikipedia) |
+| [frontend/src/App.jsx](frontend/src/App.jsx) | Routes: `/` Landing, `/dashboard` Dashboard (Home2), `/hawaii` Research (HawaiiCaseStudy), catch-all 404 |
+| [frontend/src/pages/Home2.jsx](frontend/src/pages/Home2.jsx) | Dashboard: Mapbox map, risk scan, species list and detail (catalog, iNaturalist, Wikipedia, Trefle), iNaturalist heatmap; optional synthetic observations in low-data areas |
+| [frontend/src/pages/HawaiiCaseStudy.jsx](frontend/src/pages/HawaiiCaseStudy.jsx) | Research page: tabs for Hawaii (time-slider invasive spread heatmap, Recharts, narrative) and New Zealand (NZ maps, PF2050, charts) |
+| [frontend/src/components/case-studies/](frontend/src/components/case-studies/) | HawaiiTab (map + heatmap + charts), NewZealandTab, NZReclamationMap, PF2050Progress, PossumExplosionChart, EvolutionaryMismatch, ExtinctionCross, NZHeroStats |
+| [frontend/src/api/client.js](frontend/src/api/client.js) | Backend and external API calls (risk scan, species, Trefle, iNaturalist, Wikipedia; optional is-on-water for synthetic observations) |
 
 ### Notebooks
 
@@ -252,17 +260,16 @@ Copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL` (e.g
 |------|-------------|
 | [notebooks/RiskScore.ipynb](notebooks/RiskScore.ipynb) | Risk model generation, data normalization, and index building |
 | [notebooks/PCA.ipynb](notebooks/PCA.ipynb) | PCA and feature analysis |
-| [notebooks/plants_climate_4d.faiss](notebooks/plants_climate_4d.faiss) | 4D geometric climate map |
-| [notebooks/plants_metadata.csv](notebooks/plants_metadata.csv) | Taxonomic traits, invasive flags, and synonym routing |
+| [notebooks/plants_climate_4d.faiss](notebooks/plants_climate_4d.faiss) | 4D geometric climate map; used by risk engine |
+| [notebooks/plants_metadata.csv](notebooks/plants_metadata.csv) | Taxonomic traits, invasive flags, and synonym routing; used by risk engine |
 | [notebooks/feature_means.json](notebooks/feature_means.json) | Used by risk engine to center the dynamic profile |
 | [notebooks/add_inat_taxon_ids.py](notebooks/add_inat_taxon_ids.py) | Script to attach iNaturalist taxon IDs to the species dataset |
 
-### Infra
+### Build
 
 | Path | Description |
 |------|-------------|
-| [infra/docker-compose.yml](infra/docker-compose.yml) | MongoDB service |
-| [Dockerfile](Dockerfile) | Builds backend and copies notebooks; serves API on port 8000 |
+| [Dockerfile](Dockerfile) | Builds backend and copies notebooks; fetches plants_climate_4d.faiss and plants_metadata.csv from Supabase during build; serves API on port 8000 |
 
 ### Tests
 
