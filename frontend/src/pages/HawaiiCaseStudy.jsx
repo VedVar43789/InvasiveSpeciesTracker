@@ -29,8 +29,8 @@ function Header() {
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
-              <Globe2 className="w-6 h-6 text-white" />
+            <div className="shrink-0">
+              <img src="/favicon/favicon-96x96.png" alt="InvasiveWatch" className="w-9 h-9 rounded-lg" />
             </div>
             <div>
               <h1 className="text-xl font-display text-white tracking-tight">
@@ -148,8 +148,8 @@ function PageFooter({ activeTab }) {
           )}
         </p>
         <div className="flex items-center justify-center gap-2.5 text-slate-600">
-          <div className="p-1.5 bg-gradient-to-br from-blue-500/40 to-cyan-500/40 rounded-lg">
-            <Globe2 className="w-4 h-4 text-white/60" />
+          <div className="shrink-0">
+            <img src="/favicon/favicon-96x96.png" alt="InvasiveWatch" className="w-5 h-5 rounded-md" />
           </div>
           <span className="text-sm font-display tracking-wide">InvasiveWatch</span>
         </div>

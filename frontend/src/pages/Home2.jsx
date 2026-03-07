@@ -681,8 +681,8 @@ export default function Home2() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl">
-                <Globe2 className="w-6 h-6 text-white" />
+              <div className="shrink-0">
+                <img src="/favicon/favicon-96x96.png" alt="InvasiveWatch" className="w-9 h-9 rounded-lg" />
               </div>
               <div>
                 <h1 className="text-xl font-display font-semibold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
