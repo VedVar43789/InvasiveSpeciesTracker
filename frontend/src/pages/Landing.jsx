@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { Globe2, ArrowRight, MapPin, Leaf, AlertTriangle, BarChart3, Search, Layers, ChevronDown } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
@@ -21,6 +21,25 @@ function AnimatedWord({ text }) {
         </motion.span>
       ))}
     </span>
+  );
+}
+
+// ── Scroll-triggered reveal wrapper ───────────────────────────────────────
+
+function RevealOnScroll({ children, className = '', delay = 0, y = 30 }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-80px 0px' });
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y, filter: 'blur(6px)' }}
+      animate={inView ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
+      transition={{ duration: 0.7, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -235,38 +254,46 @@ function GlobalReachSection() {
     <section id="global-reach" className="relative py-20 md:py-32 px-6">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12 md:mb-16">
-          <p className="text-[11px] font-body uppercase tracking-[0.25em] text-cyan-400/60 mb-4 flex items-center justify-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-glow-pulse" />
-            Global Reach
-          </p>
-          <h2 className="text-3xl md:text-[48px] md:leading-[1.1] font-display font-semibold tracking-tight mb-4">
-            Worldwide Species{' '}
-            <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Surveillance</span>
-          </h2>
-          <p className="text-slate-400 text-sm md:text-base max-w-xl mx-auto leading-relaxed">
-            Track, assess, and predict invasive species risk across every continent with AI-powered analysis spanning 160,000+ species records.
-          </p>
+          <RevealOnScroll>
+            <p className="text-[11px] font-body uppercase tracking-[0.25em] text-cyan-400/60 mb-4 flex items-center justify-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-glow-pulse" />
+              Global Reach
+            </p>
+          </RevealOnScroll>
+          <RevealOnScroll delay={0.1}>
+            <h2 className="text-3xl md:text-[48px] md:leading-[1.1] font-display font-semibold tracking-tight mb-4">
+              Worldwide Species{' '}
+              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Surveillance</span>
+            </h2>
+          </RevealOnScroll>
+          <RevealOnScroll delay={0.2}>
+            <p className="text-slate-400 text-sm md:text-base max-w-xl mx-auto leading-relaxed">
+              Track, assess, and predict invasive species risk across every continent with AI-powered analysis spanning 160,000+ species records.
+            </p>
+          </RevealOnScroll>
         </div>
 
-        <div className="relative w-full mb-16">
-          <img src="/map.svg" alt="Global coverage map" className="w-full h-auto" />
-        </div>
+        <RevealOnScroll delay={0.15} y={40}>
+          <div className="relative w-full mb-16">
+            <img src="/map.svg" alt="Global coverage map" className="w-full h-auto" />
+          </div>
+        </RevealOnScroll>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10">
           {[
-            { label: 'SPECIES INDEXED', value: '160K+', desc: 'global plant species', color: 'cyan' },
-            { label: 'DATA SOURCES', value: '4', desc: 'real-time integrations', color: 'blue' },
+            { label: 'SPECIES INDEXED', value: '90K+', desc: 'global plant species', color: 'cyan' },
+            { label: 'DATA SOURCES', value: '7', desc: 'real-time integrations', color: 'blue' },
             { label: 'RISK FACTORS', value: '12', desc: 'environmental variables', color: 'cyan' },
             { label: 'COVERAGE', value: '99%', desc: 'of terrestrial biomes', color: 'blue' },
           ].map((metric, i) => (
-            <div key={i} className="text-center py-6 border-t border-slate-800/50">
+            <RevealOnScroll key={i} delay={i * 0.1} className="text-center py-6 border-t border-slate-800/50">
               <div className="text-[10px] md:text-xs uppercase tracking-[0.15em] text-slate-500 mb-3 flex items-center justify-center gap-1.5">
                 <span className={`w-1.5 h-1.5 rounded-full ${metric.color === 'cyan' ? 'bg-cyan-400/60' : 'bg-blue-400/60'}`} />
                 {metric.label}
               </div>
               <AnimatedCounter value={metric.value} />
               <div className="text-[11px] md:text-xs text-slate-500 mt-2">{metric.desc}</div>
-            </div>
+            </RevealOnScroll>
           ))}
         </div>
       </div>
@@ -307,17 +334,23 @@ function FeatureShowcase() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-stretch">
           {/* Left: heading + clickable feature list */}
           <div>
-            <p className="text-[11px] font-body uppercase tracking-[0.25em] text-cyan-400/60 mb-4 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-glow-pulse" />
-              How it works
-            </p>
-            <h2 className="text-3xl md:text-[44px] md:leading-[1.1] font-display font-semibold tracking-tight mb-4">
-              Every invasive species{' '}
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">matters</span>
-            </h2>
-            <p className="text-slate-400 text-[15px] leading-relaxed mb-10 max-w-md">
-              Our predictive engine combines FAISS similarity search, live climate data, and global occurrence records to surface threats before they establish.
-            </p>
+            <RevealOnScroll>
+              <p className="text-[11px] font-body uppercase tracking-[0.25em] text-cyan-400/60 mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-glow-pulse" />
+                How it works
+              </p>
+            </RevealOnScroll>
+            <RevealOnScroll delay={0.1}>
+              <h2 className="text-3xl md:text-[44px] md:leading-[1.1] font-display font-semibold tracking-tight mb-4">
+                Every invasive species{' '}
+                <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">matters</span>
+              </h2>
+            </RevealOnScroll>
+            <RevealOnScroll delay={0.2}>
+              <p className="text-slate-400 text-[15px] leading-relaxed mb-10 max-w-md">
+                Our predictive engine combines FAISS similarity search, live climate data, and global occurrence records to surface threats before they establish.
+              </p>
+            </RevealOnScroll>
 
             {/* Mobile: show active visual inline */}
             <div className="md:hidden mb-8">
@@ -555,7 +588,7 @@ export default function Landing() {
 
       {/* CTA */}
       <section className="py-24 px-6">
-        <div className="max-w-2xl mx-auto text-center">
+        <RevealOnScroll className="max-w-2xl mx-auto text-center">
           <div className="p-10 rounded-3xl border border-slate-800/40 bg-gradient-to-b from-slate-900/40 to-transparent">
             <h3 className="text-2xl font-display font-semibold tracking-tight text-white mb-3">
               Ready to explore?
@@ -570,7 +603,7 @@ export default function Landing() {
               </Button>
             </Link>
           </div>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* Footer */}
