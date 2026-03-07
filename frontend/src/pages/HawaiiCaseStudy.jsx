@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView, useScroll, useSpring } from 'framer-motion';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 import {
   Accordion,
   AccordionContent,
@@ -15,8 +18,9 @@ import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import {
-  Globe2, Leaf, Bug, ArrowLeft, Package, Plane, Globe, AlertTriangle
+  Globe2, Leaf, Bug, ArrowLeft, Package, Plane, Globe, AlertTriangle, Loader2
 } from 'lucide-react';
+import hawaiiObservationsAll from '@/assets/hawaii/hawaii-observations-all.json';
 
 // ── Animation helpers ─────────────────────────────────────────────────────
 
@@ -218,7 +222,7 @@ function ArrivalTicker() {
   const doubled = [...ARRIVAL_TICKER_SPECIES, ...ARRIVAL_TICKER_SPECIES];
 
   return (
-    <RevealSection variants={fadeIn} className="py-12 overflow-hidden border-y border-slate-800/30 bg-slate-950/60 relative">
+    <RevealSection variants={fadeIn} className="py-8 overflow-hidden border-y border-slate-800/30 bg-slate-950/60 relative">
       <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/[0.02] via-transparent to-red-500/[0.02]" />
       <p className="text-center text-[11px] font-body text-slate-500 uppercase tracking-[0.25em] mb-5 relative z-10">
         20+ new species arrive in Hawaii every year
@@ -278,7 +282,7 @@ function Header() {
 
 function PageIntro() {
   return (
-    <RevealSection variants={staggerContainer} className="px-6 pt-12 pb-16 border-b border-slate-800/30 relative overflow-hidden">
+    <RevealSection variants={staggerContainer} className="px-6 pt-10 pb-12 border-b border-slate-800/30 relative overflow-hidden">
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-radial from-cyan-500/[0.04] to-transparent rounded-full blur-3xl" />
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-radial from-red-500/[0.03] to-transparent rounded-full blur-3xl" />
 
@@ -309,7 +313,7 @@ function PageIntro() {
 
 function StatsBar() {
   return (
-    <RevealSection variants={staggerContainer} className="py-14 px-6">
+    <RevealSection variants={staggerContainer} className="py-10 px-6">
       <div className="max-w-4xl mx-auto flex flex-wrap items-baseline gap-x-12 gap-y-8">
         {STATS.map((stat, i) => (
           <React.Fragment key={stat.label}>
@@ -331,7 +335,7 @@ function StatsBar() {
 
 function CrisisSection() {
   return (
-    <section className="py-28 px-6 relative">
+    <section className="py-20 px-6 relative">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/20 to-transparent" />
       <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-20 relative z-10">
         <RevealSection as="div" variants={staggerContainer} className="">
@@ -390,7 +394,7 @@ function SpeciesCard({ species }) {
 
 function SpeciesSpotlightSection() {
   return (
-    <RevealSection className="py-28 px-6">
+    <RevealSection className="py-20 px-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-10">
           <h3 className="text-4xl font-display text-white tracking-tight">Species That Changed Everything</h3>
@@ -436,7 +440,7 @@ const chartTooltipStyle = {
 
 function EcologicalImpactSection() {
   return (
-    <RevealSection className="py-28 px-6 bg-slate-900/20 relative">
+    <RevealSection className="py-20 px-6 bg-slate-900/20 relative">
       <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.015] to-transparent" />
       <div className="max-w-4xl mx-auto relative z-10">
         <h3 className="text-4xl font-display text-white mb-3 tracking-tight">The Inversion</h3>
@@ -463,9 +467,160 @@ function EcologicalImpactSection() {
   );
 }
 
+// ── Hawaii spread map (time-slider heatmap) ─────────────────────────────────
+
+const HAWAII_BOUNDS = [[-160.5, 18.9], [-154.7, 22.5]]; // [sw, ne] [lng, lat]
+const YEAR_MIN = 2005;
+const YEAR_MAX = 2024;
+const EMPTY_GEOJSON = { type: 'FeatureCollection', features: [] };
+
+// Hardcoded Hawaii observations (year -> GeoJSON), populated from hawaii-observations-all.json
+const HAWAII_DATA_CACHE = (() => {
+  const m = new Map();
+  const { years = {} } = hawaiiObservationsAll;
+  Object.entries(years).forEach(([y, geojson]) => m.set(Number(y), geojson));
+  return m;
+})();
+
+function HawaiiSpreadMapSection() {
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const [year, setYear] = useState(2010);
+  const [error, setError] = useState(null);
+
+  // Apply stored GeoJSON for a year to the map (sync, for slider updates).
+  const setMapData = useCallback((y) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = map.getSource('hawaii-observations');
+    if (!src) return;
+    const data = HAWAII_DATA_CACHE.get(y) ?? EMPTY_GEOJSON;
+    src.setData(data);
+  }, []);
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    const token = import.meta.env.VITE_MAPBOX_TOKEN;
+    if (!token) {
+      setError('Mapbox token not configured');
+      return;
+    }
+    mapboxgl.accessToken = token;
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: 'mapbox://styles/mapbox/outdoors-v12',
+      center: [-157.6, 20.7],
+      zoom: 6,
+    });
+    map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+    map.on('load', () => {
+      map.fitBounds(HAWAII_BOUNDS, { padding: 40, maxZoom: 10 });
+      map.addSource('hawaii-observations', {
+        type: 'geojson',
+        data: EMPTY_GEOJSON,
+      });
+      map.addLayer({
+        id: 'hawaii-heat',
+        type: 'heatmap',
+        source: 'hawaii-observations',
+        minzoom: 5,
+        maxzoom: 14,
+        paint: {
+          'heatmap-weight': 1,
+          'heatmap-intensity': [
+            'interpolate', ['linear'], ['zoom'],
+            6, 1.4,
+            10, 1.8,
+            14, 2.2,
+          ],
+          'heatmap-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            6, 7,
+            8, 5,
+            10, 4,
+            12, 3,
+            14, 2.5,
+          ],
+          'heatmap-opacity': 0.72,
+          'heatmap-color': [
+            'interpolate',
+            ['linear'],
+            ['heatmap-density'],
+            0, 'rgba(0, 0, 0, 0)',
+            0.1, 'rgba(34, 211, 238, 0.75)',
+            0.35, 'rgba(34, 211, 238, 0.95)',
+            0.55, 'rgba(251, 146, 60, 0.9)',
+            0.75, 'rgba(239, 68, 68, 0.95)',
+            1, 'rgba(220, 38, 38, 1)',
+          ],
+        },
+      });
+      mapRef.current = map;
+      setMapData(year);
+    });
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // When year changes, update map from hardcoded data.
+  useEffect(() => {
+    if (!mapRef.current) return;
+    setMapData(year);
+  }, [year, setMapData]);
+
+  return (
+    <RevealSection className="py-20 px-6 bg-slate-900/20">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-6">
+          <motion.h3 variants={fadeUp} className="text-4xl font-display text-white mb-2 tracking-tight">
+            Spread Over Time
+          </motion.h3>
+          <motion.p variants={fadeUp} className="text-slate-500 font-body">
+            Invasive species observations in Hawaii. Slide forward in time to see cumulative spread (introduced species, iNaturalist).
+          </motion.p>
+        </div>
+        <motion.div variants={scaleIn} className="rounded-2xl overflow-hidden border border-slate-700/40 bg-slate-900/50 shadow-xl">
+          <div className="relative h-[420px] w-full bg-gradient-to-br from-slate-900 via-blue-950/30 to-slate-900" ref={mapContainerRef} />
+          <div className="p-4 flex flex-col sm:flex-row items-center gap-4 border-t border-slate-700/40">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <span className="text-slate-400 text-sm font-body whitespace-nowrap">Through</span>
+              <Slider
+                value={[year]}
+                onValueChange={([v]) => setYear(v)}
+                min={YEAR_MIN}
+                max={YEAR_MAX}
+                step={1}
+                className="w-full sm:w-48"
+              />
+              <span className="text-white font-display tabular-nums min-w-[3rem]">{year}</span>
+            </div>
+            {error && (
+              <span className="text-red-400/90 text-sm">{error}</span>
+            )}
+          </div>
+          <p className="px-4 pb-3 text-slate-500 text-xs">
+            Observations from{' '}
+            <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" className="text-cyan-400/80 hover:text-cyan-300 underline underline-offset-1">
+              iNaturalist
+            </a>
+            {' '}(introduced, verifiable). Map © Mapbox.
+          </p>
+        </motion.div>
+        {!error && (
+          <p className="text-slate-500 text-sm font-body mt-3">
+            Showing observations from {YEAR_MIN} through {year}. Some observations may have obscured coordinates and are not shown.
+          </p>
+        )}
+      </div>
+    </RevealSection>
+  );
+}
+
 function SpreadMechanicsSection() {
   return (
-    <RevealSection variants={staggerContainer} className="py-28 px-6 bg-slate-900/20">
+    <RevealSection variants={staggerContainer} className="py-20 px-6 bg-slate-900/20">
       <div className="max-w-4xl mx-auto">
         <motion.h3 variants={fadeUp} className="text-4xl font-display text-white mb-4 tracking-tight">How Species Cross the Pacific</motion.h3>
         <motion.p variants={fadeUp} className="text-slate-500 font-body mb-12">The pathways that keep the invasion accelerating.</motion.p>
@@ -494,7 +649,7 @@ function SpreadMechanicsSection() {
 
 function BiodiversityLossSection() {
   return (
-    <RevealSection variants={staggerContainer} className="py-28 px-6 relative">
+    <RevealSection variants={staggerContainer} className="py-20 px-6 relative">
       <div className="absolute inset-0 bg-gradient-to-t from-red-500/[0.02] to-transparent" />
       <div className="max-w-4xl mx-auto relative z-10">
         <motion.blockquote
@@ -532,7 +687,7 @@ function BiodiversityLossSection() {
 
 function FailedResponsesSection() {
   return (
-    <RevealSection variants={staggerContainer} className="py-28 px-6">
+    <RevealSection variants={staggerContainer} className="py-20 px-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-12">
           <motion.h3 variants={fadeUp} className="text-4xl font-display text-white tracking-tight">Why Conventional Responses Fall Short</motion.h3>
@@ -567,7 +722,7 @@ const FUNNEL_STAGES = [
 
 function DataGapSection() {
   return (
-    <RevealSection variants={staggerContainer} className="py-28 px-6 bg-slate-900/20 relative">
+    <RevealSection variants={staggerContainer} className="py-20 px-6 bg-slate-900/20 relative">
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.015] to-transparent" />
       <div className="max-w-4xl mx-auto relative z-10">
         <motion.h3 variants={fadeUp} className="text-4xl font-display text-white mb-3 tracking-tight">The Surveillance Gap</motion.h3>
@@ -611,7 +766,7 @@ function DataGapSection() {
 
 function PageFooter() {
   return (
-    <RevealSection as="footer" variants={fadeIn} className="py-16 px-6">
+    <RevealSection as="footer" variants={fadeIn} className="py-12 px-6">
       <Separator className="bg-gradient-to-r from-transparent via-slate-700/50 to-transparent mb-12" />
       <div className="max-w-4xl mx-auto text-center space-y-8">
         <Link to="/dashboard" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-body group">
@@ -648,6 +803,7 @@ export default function HawaiiCaseStudy() {
         <PageIntro />
         <StatsBar />
         <ArrivalTicker />
+        <HawaiiSpreadMapSection />
         <CrisisSection />
         <SpeciesSpotlightSection />
         <EcologicalImpactSection />

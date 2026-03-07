@@ -112,3 +112,24 @@ export async function getSpeciesWithRisk({
 export async function healthCheck() {
   return request('/health');
 }
+
+/**
+ * Fetch Hawaii invasive species observations as GeoJSON for a given year.
+ * @param {{ year: number, cumulative?: boolean }} options
+ * @returns {Promise<{ type: string, features: Array }>} GeoJSON FeatureCollection
+ */
+export async function getHawaiiObservations({ year, cumulative = true }) {
+  const params = new URLSearchParams({
+    year: String(year),
+    cumulative: String(!!cumulative),
+  });
+  return request(`/hawaii/observations?${params}`);
+}
+
+/**
+ * Fetch all Hawaii observation years in one response (pre-warmed at server startup).
+ * @returns {Promise<{ yearMin: number, yearMax: number, years: Record<string, { type: string, features: Array }> }>}
+ */
+export async function getHawaiiObservationsAll() {
+  return request('/hawaii/observations/all');
+}
