@@ -488,7 +488,9 @@ function HawaiiSpreadMapSection() {
       map.remove();
       mapRef.current = null;
     };
-  }, [setMapData, year]);
+    // Create map once on mount; year changes are handled by the effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!mapRef.current) return;
