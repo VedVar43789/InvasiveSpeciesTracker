@@ -122,13 +122,13 @@ export default function PossumExplosionChart() {
           variants={fadeUp}
           className="mb-12"
         >
-          <h3 className="text-4xl font-display text-white mb-6 tracking-tight">
+          <h2 className="text-2xl font-display font-bold text-white tracking-tight mb-6">
             The Possum Explosion
-          </h3>
+          </h2>
           
           {/* Bold callout text */}
           <div className="p-6 rounded-2xl bg-red-500/5 border border-red-500/20">
-            <p className="text-xl md:text-2xl font-display text-slate-200 leading-[1.4]">
+            <p className="text-xl md:text-2xl font-body text-slate-200 leading-[1.4]">
               By the 1980s, introduced possums were devouring{' '}
               <span className="text-red-400 font-bold">21,000 tonnes</span> of
               native canopy{' '}
