@@ -6,6 +6,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LocationSearchBar } from "@/components/ui/LocationSearchBar";
 import {
   Globe2, Bug, AlertTriangle, X, Search, Leaf, Loader2, MapPin
 } from 'lucide-react';
@@ -100,6 +101,8 @@ export default function Home2() {
   const [isSearchPending, setIsSearchPending] = useState(false);
   const [searchScrollTop, setSearchScrollTop] = useState(0);
   const [searchViewportHeight, setSearchViewportHeight] = useState(480);
+  const [targetSpecies, setTargetSpecies] = useState(null);
+  const [speciesSearchResult, setSpeciesSearchResult] = useState(null);
   const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
   const [loadingSpeciesDetail, setLoadingSpeciesDetail] = useState(false);
   const [loadingEnrichment, setLoadingEnrichment] = useState(false);
@@ -145,12 +148,13 @@ export default function Home2() {
     }
   }, []);
 
-  const runScan = useCallback(async (location) => {
+  const runScan = useCallback(async (location, speciesName = null) => {
     if (!location) return;
     isScanningRef.current = true;
     setIsScanning(true);
     setScanError(null);
     setRiskData(null);
+    setSpeciesSearchResult(null);
 
     try {
       const data = await scanRisk({
@@ -162,6 +166,37 @@ export default function Home2() {
       setVisibleCounts({ high: 100, moderate: 100, low: 100 });
       const taxonIds = data?.meta?.inat_taxon_ids_for_heatmap || [];
       loadHeatmap(location, taxonIds);
+
+      // If species was specified, search for it in results
+      if (speciesName) {
+        const normalizedQuery = speciesName.toLowerCase().trim();
+        const found = data?.results?.find(r => 
+          r.scientific_name?.toLowerCase()?.includes(normalizedQuery) ||
+          r.common_name?.toLowerCase()?.includes(normalizedQuery)
+        );
+        
+        if (found) {
+          const displayName =
+            typeof found.common_name === 'string' &&
+            found.common_name.trim() !== '' &&
+            found.common_name !== 'Unknown'
+              ? found.common_name
+              : (found.scientific_name || 'Unknown species');
+
+          setSpeciesSearchResult({
+            found: true,
+            species: found,
+            message: `Found: ${displayName}`,
+          });
+          // Auto-open that species detail
+          setTimeout(() => handleSpeciesClick(found), 500);
+        } else {
+          setSpeciesSearchResult({
+            found: false,
+            message: `"${speciesName}" not found in risk results for this location`,
+          });
+        }
+      }
     } catch (err) {
       setScanError(err.message);
     } finally {
@@ -170,12 +205,14 @@ export default function Home2() {
     }
   }, [loadHeatmap]);
 
-  const handlePickLocation = useCallback(async (location, { flyTo = true } = {}) => {
+  const handlePickLocation = useCallback(async (location, { flyTo = true, speciesName = null } = {}) => {
+    console.log('handlePickLocation called with:', { location, flyTo, speciesName });
     if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
     if (isScanningRef.current) return;
 
     setExpandedCategory(null);
     setSelectedLocation(location);
+    setTargetSpecies(speciesName);
     updateSelectedMarker(location);
 
     if (flyTo && mapRef.current) {
@@ -186,7 +223,7 @@ export default function Home2() {
       });
     }
 
-    await runScan(location);
+    await runScan(location, speciesName);
     setShowModal(true);
   }, [runScan]);
 
@@ -544,6 +581,23 @@ export default function Home2() {
             </div>
           )}
 
+          {/* Location Search Bar - positioned below stats when they exist */}
+          <div className={`absolute left-6 z-10 w-80 transition-all duration-300 ${
+            riskData && !isScanning ? 'top-[140px]' : 'top-6'
+          }`}>
+            <div className="bg-slate-900/90 backdrop-blur-xl rounded-xl p-4 border border-slate-700/50">
+              <LocationSearchBar
+                onLocationFound={(lat, lng, speciesName, placeName) => {
+                  handlePickLocation(
+                    { lat, lng, name: placeName || 'Selected location' },
+                    { flyTo: true, speciesName }
+                  );
+                }}
+                isLoading={isScanning}
+              />
+            </div>
+          </div>
+
           {scanError && (
             <div className="absolute top-6 left-6 z-10 bg-red-900/80 backdrop-blur-xl rounded-2xl p-4 border border-red-700/50 max-w-sm">
               <p className="text-sm text-red-300">Scan failed: {scanError}</p>
@@ -603,6 +657,31 @@ export default function Home2() {
               {/* Search input */}
               {!selectedSpeciesDetail && (
                 <div className="px-6 py-4 border-b border-slate-800">
+                  {/* Species Search Result Banner */}
+                  {speciesSearchResult && (
+                    <div className={`mb-3 rounded-lg p-3 border ${
+                      speciesSearchResult.found 
+                        ? 'bg-emerald-500/10 border-emerald-500/30' 
+                        : 'bg-amber-500/10 border-amber-500/30'
+                    }`}>
+                      <p className={`text-sm font-medium ${
+                        speciesSearchResult.found ? 'text-emerald-400' : 'text-amber-400'
+                      }`}>
+                        {speciesSearchResult.message}
+                      </p>
+                      {speciesSearchResult.found && speciesSearchResult.species && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Badge className={`border-0 ${getRiskBadgeStyle(speciesSearchResult.species.risk_label)}`}>
+                            {speciesSearchResult.species.risk_label}
+                          </Badge>
+                          <span className="text-xs text-slate-400">
+                            Risk Score: {(speciesSearchResult.species.risk_score * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input
