@@ -14,6 +14,7 @@ import { scanRisk, getSpeciesByLocation, getINatTaxonProfile, getWikipediaSummar
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const SAN_DIEGO = { lat: 32.7157, lng: -117.1611, name: "San Diego" };
+const HONOLULU = { lat: 21.3069, lng: -157.8583, name: "Honolulu" };
 const SEARCH_ITEM_HEIGHT = 92;
 const SEARCH_OVERSCAN = 8;
 
@@ -82,7 +83,7 @@ export default function Home2() {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const sdMarkerRef = useRef(null);
-  const hasAutoScanned = useRef(false);
+  const hiMarkerRef = useRef(null);
   const isScanningRef = useRef(false);
   const searchResultsRef = useRef(null);
   const speciesStaticCacheRef = useRef(new Map());
@@ -237,21 +238,32 @@ export default function Home2() {
       handlePickLocationRef.current(SAN_DIEGO);
     });
 
-    // Selected-location marker (cyan, starts hidden at SD)
+    // Honolulu permanent marker
+    const hiEl = document.createElement('div');
+    hiEl.style.cssText = 'width:16px;height:16px;background:white;border-radius:50%;border:2px solid rgba(234,179,8,0.8);box-shadow:0 0 8px rgba(234,179,8,0.5);cursor:pointer;';
+    hiMarkerRef.current = new mapboxgl.Marker({ element: hiEl })
+      .setLngLat([HONOLULU.lng, HONOLULU.lat])
+      .setPopup(new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML(
+        '<div style="font-size:13px;font-weight:600;">Honolulu</div>' +
+        '<div style="font-size:11px;color:#94a3b8;">Click to scan</div>'
+      ))
+      .addTo(map);
+
+    hiEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (isScanningRef.current) return;
+      handlePickLocationRef.current(HONOLULU);
+    });
+
+    // Selected-location marker (cyan, starts hidden)
     const selEl = document.createElement('div');
     selEl.style.cssText = 'width:14px;height:14px;background:rgb(34,211,238);border-radius:50%;border:2px solid rgba(34,211,238,0.4);box-shadow:0 0 10px rgba(34,211,238,0.6);display:none;';
     markerRef.current = new mapboxgl.Marker({ element: selEl })
-      .setLngLat([SAN_DIEGO.lng, SAN_DIEGO.lat])
+      .setLngLat([HONOLULU.lng, HONOLULU.lat])
       .addTo(map);
 
     map.on('load', () => {
-      // Fly to San Diego and auto-scan
-      map.flyTo({ center: [SAN_DIEGO.lng, SAN_DIEGO.lat], zoom: 7, duration: 2500 });
-
-      if (!hasAutoScanned.current) {
-        hasAutoScanned.current = true;
-        setTimeout(() => handlePickLocationRef.current(SAN_DIEGO, { flyTo: false }), 2800);
-      }
+      map.flyTo({ center: [HONOLULU.lng, HONOLULU.lat], zoom: 7, duration: 2500 });
     });
 
     map.on('click', (e) => {
