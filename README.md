@@ -222,16 +222,47 @@ Copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL` (e.g
 
 ## Project Structure / Codebase Overview
 
-- **Backend**  
-[backend/app/main.py](backend/app/main.py) — FastAPI app; lifespan loads CSV and ML CSV into in-memory stores. [backend/app/api/v1/](backend/app/api/v1/) — health, species (catalog/scan/trefle-traits), risk (scan) endpoints. [backend/app/services/risk_scan.py](backend/app/services/risk_scan.py) — runs GBIF fetch, builds dynamic profile, calls risk engine, applies labels and GBIF filter. [backend/app/ml/risk_engine.py](backend/app/ml/risk_engine.py) — cosine similarity and multipliers. [backend/app/core/config.py](backend/app/core/config.py) and [backend/app/core/utils.py](backend/app/core/utils.py) — settings and helpers (GBIF, rainfall, biome, soil pH). [backend/app/db/csv_store.py](backend/app/db/csv_store.py), [backend/app/db/ml_store.py](backend/app/db/ml_store.py) — CSV/ML loaders. [backend/app/schemas/](backend/app/schemas/) — Pydantic request/response models.
-- **Frontend**  
-[frontend/src/App.jsx](frontend/src/App.jsx) — routes: `/` (Home), `/hawaii` (Hawaii case study), catch-all 404. [frontend/src/pages/Home2.jsx](frontend/src/pages/Home2.jsx) — map (Mapbox), risk scan, species list and detail (catalog, iNaturalist, Wikipedia, Trefle). [frontend/src/pages/HawaiiCaseStudy.jsx](frontend/src/pages/HawaiiCaseStudy.jsx) — static charts and narrative (Recharts, etc.). [frontend/src/api/client.js](frontend/src/api/client.js) — all backend and external API calls (risk scan, species, Trefle, iNaturalist, Wikipedia).
-- **Notebooks**  
-[notebooks/RiskScore.ipynb](notebooks/RiskScore.ipynb) — risk inference (cosine similarity, aggregation). [notebooks/PCA.ipynb](notebooks/PCA.ipynb) — PCA and feature analysis. [notebooks/add_inat_taxon_ids.py](notebooks/add_inat_taxon_ids.py) — script to attach iNaturalist taxon IDs to the species dataset.
-- **Infra**  
-[infra/docker-compose.yml](infra/docker-compose.yml) — MongoDB service. Root [Dockerfile](Dockerfile) — builds backend and copies notebooks; serves API on port 8000.
-- **Tests**  
-[backend/tests/README.md](backend/tests/README.md) — how to run manual risk tests, risk endpoint tests, species endpoint tests, and optional GBIF pytest (`RUN_GBIF_TESTS=1`).
+### Backend
+
+| Path | Description |
+|------|-------------|
+| [backend/app/main.py](backend/app/main.py) | FastAPI app; lifespan loads CSV and ML data into in-memory stores |
+| [backend/app/api/v1/](backend/app/api/v1/) | Routes: health, species (catalog/scan/trefle-traits), risk (scan) |
+| [backend/app/services/risk_scan.py](backend/app/services/risk_scan.py) | Orchestrates GBIF fetch, dynamic profile, risk engine, labels and GBIF filter |
+| [backend/app/ml/risk_engine.py](backend/app/ml/risk_engine.py) | Cosine similarity and multipliers |
+| [backend/app/core/config.py](backend/app/core/config.py), [backend/app/core/utils.py](backend/app/core/utils.py) | Config and helpers (GBIF, rainfall, biome, soil pH) |
+| [backend/app/db/csv_store.py](backend/app/db/csv_store.py), [backend/app/db/ml_store.py](backend/app/db/ml_store.py) | CSV and ML loaders |
+| [backend/app/schemas/](backend/app/schemas/) | Pydantic request/response models |
+
+### Frontend
+
+| Path | Description |
+|------|-------------|
+| [frontend/src/App.jsx](frontend/src/App.jsx) | Routes: `/` (Home), `/hawaii` (Hawaii case study), catch-all 404 |
+| [frontend/src/pages/Home2.jsx](frontend/src/pages/Home2.jsx) | Map (Mapbox), risk scan, species list and detail (catalog, iNaturalist, Wikipedia, Trefle) |
+| [frontend/src/pages/HawaiiCaseStudy.jsx](frontend/src/pages/HawaiiCaseStudy.jsx) | Static charts and narrative (Recharts, etc.) |
+| [frontend/src/api/client.js](frontend/src/api/client.js) | Backend and external API calls (risk scan, species, Trefle, iNaturalist, Wikipedia) |
+
+### Notebooks
+
+| Path | Description |
+|------|-------------|
+| [notebooks/RiskScore.ipynb](notebooks/RiskScore.ipynb) | Risk inference (cosine similarity, aggregation) |
+| [notebooks/PCA.ipynb](notebooks/PCA.ipynb) | PCA and feature analysis |
+| [notebooks/add_inat_taxon_ids.py](notebooks/add_inat_taxon_ids.py) | Script to attach iNaturalist taxon IDs to the species dataset |
+
+### Infra
+
+| Path | Description |
+|------|-------------|
+| [infra/docker-compose.yml](infra/docker-compose.yml) | MongoDB service |
+| [Dockerfile](Dockerfile) | Builds backend and copies notebooks; serves API on port 8000 |
+
+### Tests
+
+| Path | Description |
+|------|-------------|
+| [backend/tests/README.md](backend/tests/README.md) | How to run manual risk tests, risk endpoint tests, species endpoint tests, and optional GBIF pytest (`RUN_GBIF_TESTS=1`) |
 
 ---
 
