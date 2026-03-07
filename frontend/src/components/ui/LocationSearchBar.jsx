@@ -20,10 +20,9 @@ export function LocationSearchBar({ onLocationFound, isLoading = false }) {
     return null;
   };
 
-  // Helper to safely get species value - returns null if empty, trimmed value if valid
+  // Helper to safely get species value - returns trimmed species name
   const getValidSpeciesInput = () => {
-    const trimmed = speciesInput.trim();
-    return trimmed.length > 0 ? trimmed : null;
+    return speciesInput.trim();
   };
 
   const handleLocateMe = async () => {
