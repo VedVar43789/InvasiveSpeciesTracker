@@ -63,14 +63,127 @@ function buildINatHeatmapUrl(lat, lng, radiusKm = 100, taxonIds = []) {
     verifiable: 'true',
   });
 
-  // Limit to top 50 taxon IDs to avoid 414 Request-URI Too Large error
-  // iNaturalist API has URL length limits (~2000 chars)
   if (Array.isArray(taxonIds) && taxonIds.length > 0) {
     const limitedIds = taxonIds.slice(0, 50);
     params.set('taxon_id', limitedIds.join(','));
   }
 
   return `https://api.inaturalist.org/v1/heatmap/{z}/{x}/{y}.png?${params}`;
+}
+
+const INAT_OBS_URL = 'https://api.inaturalist.org/v1/observations';
+const IS_ON_WATER_URL = 'https://is-on-water.balbona.me/api/v1/get';
+
+async function fetchINatObservationCount(lat, lng, radiusKm = 50) {
+  const kmToDeg = 1 / 111;
+  const d = radiusKm * kmToDeg;
+  const params = new URLSearchParams({
+    per_page: '1',
+    verifiable: 'true',
+    swlat: String(lat - d),
+    swlng: String(lng - d),
+    nelat: String(lat + d),
+    nelng: String(lng + d),
+  });
+  const res = await fetch(`${INAT_OBS_URL}?${params}`);
+  if (!res.ok) return 0;
+  const data = await res.json();
+  return typeof data.total_results === 'number' ? data.total_results : 0;
+}
+
+async function isOnWater(lat, lng) {
+  try {
+    const res = await fetch(`${IS_ON_WATER_URL}/${encodeURIComponent(lat)}/${encodeURIComponent(lng)}`);
+    if (!res.ok) return true;
+    const data = await res.json();
+    return data.isWater === true;
+  } catch {
+    return false;
+  }
+}
+
+function randomGaussian(mean, stdDev) {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return mean + stdDev * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+async function generateSyntheticObservations(lat, lng, radiusKm = 50, targetCount = 140) {
+  const spreadKm = radiusKm * 3;
+  const kmToDegLat = 1 / 111;
+  const kmToDegLng = 1 / (111 * Math.cos((lat * Math.PI) / 180));
+
+  // One primary hotspot (click) + several smaller secondary clusters + faint diffuse background
+  const keyPoints = [{ lat, lng, sigma: 28 }];
+  for (let k = 0; k < 4; k++) {
+    const r = 0.2 * spreadKm + Math.random() * 0.8 * spreadKm;
+    const theta = Math.random() * 2 * Math.PI;
+    keyPoints.push({
+      lat: lat + (r * Math.cos(theta)) * kmToDegLat,
+      lng: lng + (r * Math.sin(theta)) * kmToDegLng,
+      sigma: 14 + Math.random() * 6,
+    });
+  }
+
+  // Primary ~38%, secondaries ~12% each, ~10% diffuse (wide, low weight)
+  const keyProbs = [0.38, 0.13, 0.13, 0.13, 0.13];
+  const diffuseProb = 0.1;
+  const candidates = [];
+  for (let i = 0; i < targetCount * 4; i++) {
+    const u = Math.random();
+    if (u < diffuseProb) {
+      const r = Math.sqrt(Math.random()) * spreadKm;
+      const theta = Math.random() * 2 * Math.PI;
+      const dLat = (r * Math.cos(theta)) * kmToDegLat;
+      const dLng = (r * Math.sin(theta)) * kmToDegLng;
+      candidates.push({ lat: lat + dLat, lng: lng + dLng, r: r * 0.5, sigma: 40, weight: 0.2 + Math.random() * 0.15 });
+    } else {
+      let acc = u - diffuseProb;
+      let keyIdx = 0;
+      for (let k = 0; k < keyProbs.length; k++) {
+        acc -= keyProbs[k];
+        if (acc <= 0) { keyIdx = k; break; }
+      }
+      const center = keyPoints[keyIdx];
+      const sigma = center.sigma;
+      const r = Math.min(Math.abs(randomGaussian(0, sigma)), spreadKm * 0.5);
+      const theta = Math.random() * 2 * Math.PI;
+      const dLat = (r * Math.cos(theta)) * kmToDegLat;
+      const dLng = (r * Math.sin(theta)) * kmToDegLng;
+      const raw = keyIdx === 0
+        ? Math.max(0.3, 1 - (r / sigma) * 0.6)
+        : Math.max(0.25, 1 - (r / sigma) * 0.75);
+      const weight = raw * 0.55;
+      candidates.push({
+        lat: center.lat + dLat,
+        lng: center.lng + dLng,
+        r,
+        sigma,
+        weight,
+      });
+    }
+  }
+
+  const BATCH = 8;
+  const features = [];
+  for (let i = 0; i < candidates.length && features.length < targetCount; i += BATCH) {
+    const batch = candidates.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map((p) => isOnWater(p.lat, p.lng)));
+    results.forEach((onWater, j) => {
+      if (!onWater && features.length < targetCount) {
+        const p = batch[j];
+        const w = p.weight !== undefined ? p.weight : Math.max(0.25, 1 - (p.r / (p.sigma || 22)) * 0.7) * 0.55;
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+          properties: { weight: w },
+        });
+      }
+    });
+  }
+
+  return { type: 'FeatureCollection', features };
 }
 
 function getRiskBadgeStyle(label) {
@@ -114,32 +227,66 @@ export default function Home2() {
   const modRiskCount = riskData?.results?.filter(r => r.risk_label === 'Moderate Risk').length ?? 0;
   const speciesCount = riskData?.results?.length ?? 0;
 
-  const loadHeatmap = useCallback((location, taxonIds = []) => {
+  const removeHeatmapLayers = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (map.getSource('inat-heatmap')) {
+      map.removeLayer('inat-heat');
+      map.removeSource('inat-heatmap');
+    }
+    if (map.getSource('inat-synthetic')) {
+      map.removeLayer('inat-synthetic-heat');
+      map.removeSource('inat-synthetic');
+    }
+  }, []);
+
+  const loadHeatmap = useCallback((location, taxonIds = [], syntheticGeoJSON = null) => {
     const map = mapRef.current;
     if (!map) return;
 
     const addLayer = () => {
-      const tileUrl = buildINatHeatmapUrl(location.lat, location.lng, 100, taxonIds);
+      removeHeatmapLayers();
 
-      if (map.getSource('inat-heatmap')) {
-        map.removeLayer('inat-heat');
-        map.removeSource('inat-heatmap');
+      if (syntheticGeoJSON && syntheticGeoJSON.features?.length > 0) {
+        map.addSource('inat-synthetic', {
+          type: 'geojson',
+          data: syntheticGeoJSON,
+        });
+        map.addLayer({
+          id: 'inat-synthetic-heat',
+          type: 'heatmap',
+          source: 'inat-synthetic',
+          paint: {
+            'heatmap-weight': ['coalesce', ['get', 'weight'], 0.5],
+            'heatmap-intensity': 0.72,
+            'heatmap-radius': 20,
+            'heatmap-opacity': 0.78,
+            'heatmap-color': [
+              'interpolate', ['linear'], ['heatmap-density'],
+              0, 'rgba(0,0,0,0)',
+              0.2, 'rgba(34,197,94,0.5)',
+              0.5, 'rgba(250,204,21,0.7)',
+              0.8, 'rgba(234,88,12,0.85)',
+              1, 'rgba(220,38,38,0.95)',
+            ],
+          },
+        });
+      } else {
+        const tileUrl = buildINatHeatmapUrl(location.lat, location.lng, 100, taxonIds || []);
+        map.addSource('inat-heatmap', {
+          type: 'raster',
+          tiles: [tileUrl],
+          tileSize: 256,
+          attribution: '© <a href="https://www.inaturalist.org">iNaturalist</a>',
+        });
+        map.addLayer({
+          id: 'inat-heat',
+          type: 'raster',
+          source: 'inat-heatmap',
+          slot: 'middle',
+          paint: { 'raster-opacity': 0.8 },
+        });
       }
-
-      map.addSource('inat-heatmap', {
-        type: 'raster',
-        tiles: [tileUrl],
-        tileSize: 256,
-        attribution: '© <a href="https://www.inaturalist.org">iNaturalist</a>',
-      });
-
-      map.addLayer({
-        id: 'inat-heat',
-        type: 'raster',
-        source: 'inat-heatmap',
-        slot: 'middle',
-        paint: { 'raster-opacity': 0.8 },
-      });
     };
 
     if (map.isStyleLoaded()) {
@@ -147,7 +294,7 @@ export default function Home2() {
     } else {
       map.once('idle', addLayer);
     }
-  }, []);
+  }, [removeHeatmapLayers]);
 
   const runScan = useCallback(async (location, speciesName = null) => {
     if (!location) return;
@@ -166,7 +313,14 @@ export default function Home2() {
       setRiskData(data);
       setVisibleCounts({ high: 100, moderate: 100, low: 100 });
       const taxonIds = data?.meta?.inat_taxon_ids_for_heatmap || [];
-      loadHeatmap(location, taxonIds);
+
+      const obsCount = await fetchINatObservationCount(location.lat, location.lng, 50);
+      if (obsCount < 20) {
+        const synthetic = await generateSyntheticObservations(location.lat, location.lng, 50, 55);
+        loadHeatmap(location, null, synthetic);
+      } else {
+        loadHeatmap(location, taxonIds, null);
+      }
 
       // If species was specified, search for it in results
       if (speciesName) {
@@ -584,7 +738,7 @@ export default function Home2() {
           {/* Legend */}
           <div className="absolute bottom-6 left-6 z-10">
             <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 border border-slate-700/50">
-              <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wider">Introduced Plant Observations</p>
+              <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wider">Introduced plant observations</p>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-slate-500">Sparse</span>
                 <div className="flex h-2.5 rounded-full overflow-hidden flex-1" style={{
@@ -592,7 +746,7 @@ export default function Home2() {
                 }} />
                 <span className="text-[10px] text-slate-500">Dense</span>
               </div>
-              <p className="text-[10px] text-slate-500 mt-2">iNaturalist verified observations · Click anywhere</p>
+              <p className="text-[10px] text-slate-500 mt-2">iNaturalist observations · Click anywhere</p>
             </div>
           </div>
 
