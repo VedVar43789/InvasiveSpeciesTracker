@@ -211,7 +211,7 @@ export default function Home2() {
     if (flyTo && mapRef.current) {
       mapRef.current.flyTo({
         center: [location.lng, location.lat],
-        zoom: 10,
+        zoom: 8,
         duration: 1200,
       });
     }
