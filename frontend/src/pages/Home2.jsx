@@ -176,10 +176,17 @@ export default function Home2() {
         );
         
         if (found) {
+          const displayName =
+            typeof found.common_name === 'string' &&
+            found.common_name.trim() !== '' &&
+            found.common_name !== 'Unknown'
+              ? found.common_name
+              : (found.scientific_name || 'Unknown species');
+
           setSpeciesSearchResult({
             found: true,
             species: found,
-            message: `Found: ${found.common_name !== 'Unknown' ? found.common_name : found.scientific_name}`,
+            message: `Found: ${displayName}`,
           });
           // Auto-open that species detail
           setTimeout(() => handleSpeciesClick(found), 500);
