@@ -158,7 +158,7 @@ Then open:
 - **Frontend:** [http://localhost:5173](http://localhost:5173)
 - **API:** [http://localhost:8000](http://localhost:8000) — docs at [http://localhost:8000/docs](http://localhost:8000/docs)
 
-Set `VITE_MAPBOX_TOKEN` in a `.env` file in the project root if you want the map to load (the frontend container reads it from the environment).
+**Mapbox:** The frontend container uses `frontend/.env` for the Mapbox token. Copy `frontend/.env.example` to `frontend/.env` and set `VITE_MAPBOX_TOKEN` there before running `docker compose up` (or rebuild with `docker compose up --build` after editing). Do not put the token in the project root—Compose does not override it, so the value in `frontend/.env` is used.
 
 ---
 
