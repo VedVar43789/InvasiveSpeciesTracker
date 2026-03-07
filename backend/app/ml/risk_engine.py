@@ -119,7 +119,7 @@ def calculate_risk(dynamic_profile: Dict[str, float]) -> List[Dict[str, Any]]:
     
     # --- FINAL RISK CALCULATION ---
     
-    # Total Risk = Climate Suitability × Biological Aggression
+    # Total Risk = 0.6 × Biological Aggression + 0.4 × Climate Suitability
     results['risk_score'] = (results['aggression_score'] * 0.6) + (results['climate_score'] * 0.4)
     
     # --- FIX 1: SUBSPECIES DEDUPLICATOR ---
