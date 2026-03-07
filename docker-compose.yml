@@ -1,0 +1,37 @@
+# Full dev stack: backend (FastAPI), frontend (Vite), MongoDB.
+# From project root: docker compose run frontend npm install  (once)
+#                    docker compose build
+#                    docker compose up
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    container_name: invasive-tracker-api
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+      - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:-}
+    depends_on:
+      - backend
+    container_name: invasive-tracker-frontend
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    container_name: invasive-tracker-mongo
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:
