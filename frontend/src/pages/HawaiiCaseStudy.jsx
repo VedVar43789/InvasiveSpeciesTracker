@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
-import { Separator } from "@/components/ui/separator";
 import { Globe2, ArrowLeft } from 'lucide-react';
 import HawaiiTab from '@/components/case-studies/HawaiiTab';
 import NewZealandTab from '@/components/case-studies/NewZealandTab';
@@ -124,7 +123,7 @@ function CaseStudyToggle({ activeTab, setActiveTab }) {
 function PageFooter({ activeTab }) {
   return (
     <footer className="py-16 px-6">
-      <Separator className="bg-gradient-to-r from-transparent via-slate-700/50 to-transparent mb-12" />
+      <div className="h-px bg-gradient-to-r from-transparent via-slate-700/50 to-transparent mb-12" />
       <div className="max-w-4xl mx-auto text-center space-y-8">
         <Link to="/dashboard" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-body group">
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
