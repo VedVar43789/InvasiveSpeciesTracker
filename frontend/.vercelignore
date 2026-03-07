@@ -1,0 +1,9 @@
+# Dependencies are installed on Vercel
+node_modules
+# Local env (use Vercel env vars instead)
+.env
+.env.*
+!.env.example
+# Misc
+*.log
+.DS_Store

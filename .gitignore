@@ -68,3 +68,4 @@ out/
 # --------------------
 coverage.xml
 reports/
+.vercel
