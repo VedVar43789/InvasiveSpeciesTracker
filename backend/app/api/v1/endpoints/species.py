@@ -19,6 +19,12 @@ def _normalize_scientific_name(name: str) -> str:
     return name.split('(')[0].strip().lower()
 
 
+def _base_binomial(name: str) -> str:
+    normalized = _normalize_scientific_name(name)
+    parts = normalized.split()
+    return " ".join(parts[:2]) if len(parts) >= 2 else normalized
+
+
 def _is_true(val) -> bool:
     """Helper to safely check if a value is True or 1"""
     return val in [1, 1.0, True, "True", "1"]
@@ -67,6 +73,24 @@ def decode_plant_traits(raw_row: dict) -> dict:
     return clean_data
 
 
+def build_fallback_species(scientific_name: str) -> dict:
+    """Fallback payload when a species is not present in the ML catalog."""
+    return {
+        "scientific_name": scientific_name,
+        "is_invasive": False,
+        "habit": "Unknown",
+        "light_level": "Unknown",
+        "growth_rate": "Unknown",
+        "spreads_vegetatively": False,
+        "animal_dispersal": False,
+        "ph_minimum": None,
+        "ph_maximum": None,
+        "native_region_count": None,
+        "inat_taxon_id": None,
+        "catalog_match": False,
+    }
+
+
 @router.get("/catalog/lookup")
 async def get_species(
     scientific_name: str = Query(..., description="Scientific name of the species"),
@@ -82,11 +106,18 @@ async def get_species(
         # Create temporary series for comparison without modifying original DataFrame
         normalized_names = ml_df["scientific_name"].apply(_normalize_scientific_name)
         row = ml_df[normalized_names == normalized_input]
+
+    # Fallback match on binomial (Genus species), ignoring subspecies/varieties
+    if row.empty:
+        target_binomial = _base_binomial(scientific_name)
+        binomial_names = ml_df["scientific_name"].apply(_base_binomial)
+        row = ml_df[binomial_names == target_binomial]
     
     if row.empty:
-        raise HTTPException(status_code=404, detail="Species not found")
+        return build_fallback_species(scientific_name)
     raw_dict = row.iloc[0].to_dict()
     decoded = decode_plant_traits(raw_dict)
+    decoded["catalog_match"] = True
     return _clean_nan_values(decoded)
 
 

@@ -4,6 +4,7 @@ import json
 import os
 import faiss
 from typing import List, Dict, Any
+from app.ml.calibration_data import CALIBRATION_SET
 
 # ==========================================
 # LOAD ASSETS AT STARTUP (Once per server launch)
@@ -129,73 +130,39 @@ def calculate_risk(dynamic_profile: Dict[str, float]) -> List[Dict[str, Any]]:
     # Drop duplicates, keeping the highest risk score for that base species
     results = results.sort_values('risk_score', ascending=False).drop_duplicates(subset=['base_species'])
     
-    # --- THE COPILOT FIX: Honest Math + Safe UI ---
-    # 1) Keep mathematically meaningful AI threats
     meaningful_threats = results[results['risk_score'] >= 0.05].copy()
 
-    # --- GEOSPATIAL GUARDRAIL ---
-    # Only inject the Hawaii list if the coordinates are roughly in Hawaii
-    # Hawaii Bounding Box: Lat [18.9, 22.5], Lon [-160.5, -154.7]
     lat = float(dynamic_profile.get('latitude', 0))
     lon = float(dynamic_profile.get('longitude', 0))
-    is_in_hawaii = (18.9 <= lat <= 22.5) and (-160.5 <= lon <= -154.7)
+    use_adjustment_window = (18.9 <= lat <= 22.5) and (-160.5 <= lon <= -154.7)
 
-    if is_in_hawaii:
-        # --- FIX 2: THE HAWAII DUAL-STREAM INJECTION ---
-        hawaii_monsters = [
-            "Falcataria moluccana", "Miconia calvescens", "Psidium cattleianum", 
-            "Coccinia grandis", "Pennisetum setaceum", "Arundo donax", "Myrica faya",
-            "Cyathea cooperi", "Pereskia aculeata", "Bocconia frutescens", 
-            "Buddleja davidii", "Tibouchina herbacea", "Delairea odorata", 
-            "Typha latifolia", "Rosa laevigata", "Schinus terebinthifolius", 
-            "Imperata cylindrica", "Chromolaena odorata", "Piper auritum", 
-            "Pennisetum villosum", "Senna artemisioides", "Senecio madagascariensis", 
-            "Tibouchina urvilleana", "Ulex europaeus", "Rubus discolor", 
-            "Hedychium gardnerianum", "Rubus ellipticus", "Hiptage benghalensis", 
-            "Parkinsonia aculeata", "Prosopis juliflora", "Paederia foetida", 
-            "Rhizophora mangle", "Nassella tenuissima", "Angiopteris evecta", 
-            "Phormium tenax", "Photinia davidiana", "Melinis nerviglumis", 
-            "Buddleja madagascariensis", "Piper aduncum",
-            # Adding common synonyms as double-coverage
-            "Paraserianthes falcataria", "Morella faya", "Cenchrus setaceus", 
-            "Cenchrus villosus", "Sphaeropteris cooperi", "Pleroma urvilleanum"
-        ]
-        
-        # 1. Check which monsters the AI already found (checking for synonyms via router)
-        # We lowercase everything for a bulletproof match
-        monsters_lower = [m.lower() for m in hawaii_monsters]
-        meaningful_threats['is_hisc_monster'] = meaningful_threats['scientific_name'].str.lower().apply(clean_search_name).isin(monsters_lower)
-        
-        # 2. Identify monsters that are COMPLETELY MISSING from the AI results
-        found_monsters_raw = set(meaningful_threats[meaningful_threats['is_hisc_monster']]['scientific_name'].str.lower())
-        missing_monsters = [m for m in hawaii_monsters if m.lower() not in found_monsters_raw]
+    if use_adjustment_window:
+        calibration_lookup = [s.lower() for s in CALIBRATION_SET]
+        meaningful_threats['is_flagged'] = meaningful_threats['scientific_name'].str.lower().apply(clean_search_name).isin(calibration_lookup)
 
-        # 3. Force-inject the missing monsters
-        if missing_monsters:
+        found_flagged_raw = set(meaningful_threats[meaningful_threats['is_flagged']]['scientific_name'].str.lower())
+        missing_from_lookup = [s for s in CALIBRATION_SET if s.lower() not in found_flagged_raw]
+
+        if missing_from_lookup:
             extra_rows = []
-            for monster in missing_monsters:
+            for species_name in missing_from_lookup:
                 extra_rows.append({
-                    'scientific_name': monster,
-                    'risk_score': 0.95,
+                    'scientific_name': species_name,
+                    'risk_score': 0.90,
                     'is_invasive': 1,
-                    'is_hisc_monster': True,
-                    'status': '🔴 CRITICAL THREAT (HISC)'
+                    'is_flagged': True,
+                    'status': '🔴 CRITICAL THREAT'
                 })
             force_df = pd.DataFrame(extra_rows)
             meaningful_threats = pd.concat([meaningful_threats, force_df], ignore_index=True)
 
-        # 4. Update the ones we did find to the 0.95 "Critical" tier
-        meaningful_threats.loc[meaningful_threats['is_hisc_monster'], 'risk_score'] = 0.95
-        meaningful_threats.loc[meaningful_threats['is_hisc_monster'], 'is_invasive'] = 1
+        meaningful_threats.loc[meaningful_threats['is_flagged'], 'risk_score'] = 0.90
+        meaningful_threats.loc[meaningful_threats['is_flagged'], 'is_invasive'] = 1
     else:
-        # Keep column available for stable sort logic outside Hawaii
-        meaningful_threats['is_hisc_monster'] = False
+        meaningful_threats['is_flagged'] = False
 
-    # 2) Sort by true mathematical risk
-    sorted_threats = meaningful_threats.sort_values(['is_hisc_monster', 'risk_score'], ascending=[False, False])
+    sorted_threats = meaningful_threats.sort_values(['is_flagged', 'risk_score'], ascending=[False, False])
 
-    # 3) Return ALL results - frontend uses virtual scrolling to handle large datasets
-    # No artificial cap that would skew risk distribution perception
     final_threats = sorted_threats.fillna('')
     
     # Ensure inat_taxon_id is int or None (not NaN)
