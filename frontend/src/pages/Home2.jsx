@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Globe2, Bug, AlertTriangle, X, Search, Leaf, Loader2, ArrowRight, MapPin
+  Globe2, Bug, AlertTriangle, X, Search, Leaf, Loader2, MapPin
 } from 'lucide-react';
 import { scanRisk, getSpeciesByLocation, getINatTaxonProfile, getWikipediaSummary, getTrefleTraits } from '@/api/client';
 
@@ -83,6 +83,7 @@ export default function Home2() {
   const markerRef = useRef(null);
   const sdMarkerRef = useRef(null);
   const hasAutoScanned = useRef(false);
+  const isScanningRef = useRef(false);
   const searchResultsRef = useRef(null);
   const speciesStaticCacheRef = useRef(new Map());
   const speciesEnrichmentCacheRef = useRef(new Map());
@@ -111,33 +112,42 @@ export default function Home2() {
 
   const loadHeatmap = useCallback((location, taxonIds = []) => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
 
-    const tileUrl = buildINatHeatmapUrl(location.lat, location.lng, 100, taxonIds);
+    const addLayer = () => {
+      const tileUrl = buildINatHeatmapUrl(location.lat, location.lng, 100, taxonIds);
 
-    if (map.getSource('inat-heatmap')) {
-      map.removeLayer('inat-heat');
-      map.removeSource('inat-heatmap');
+      if (map.getSource('inat-heatmap')) {
+        map.removeLayer('inat-heat');
+        map.removeSource('inat-heatmap');
+      }
+
+      map.addSource('inat-heatmap', {
+        type: 'raster',
+        tiles: [tileUrl],
+        tileSize: 256,
+        attribution: '© <a href="https://www.inaturalist.org">iNaturalist</a>',
+      });
+
+      map.addLayer({
+        id: 'inat-heat',
+        type: 'raster',
+        source: 'inat-heatmap',
+        slot: 'middle',
+        paint: { 'raster-opacity': 0.8 },
+      });
+    };
+
+    if (map.isStyleLoaded()) {
+      addLayer();
+    } else {
+      map.once('idle', addLayer);
     }
-
-    map.addSource('inat-heatmap', {
-      type: 'raster',
-      tiles: [tileUrl],
-      tileSize: 256,
-      attribution: '© <a href="https://www.inaturalist.org">iNaturalist</a>',
-    });
-
-    map.addLayer({
-      id: 'inat-heat',
-      type: 'raster',
-      source: 'inat-heatmap',
-      slot: 'middle',
-      paint: { 'raster-opacity': 0.8 },
-    });
   }, []);
 
   const runScan = useCallback(async (location) => {
     if (!location) return;
+    isScanningRef.current = true;
     setIsScanning(true);
     setScanError(null);
     setRiskData(null);
@@ -155,12 +165,14 @@ export default function Home2() {
     } catch (err) {
       setScanError(err.message);
     } finally {
+      isScanningRef.current = false;
       setIsScanning(false);
     }
   }, [loadHeatmap]);
 
   const handlePickLocation = useCallback(async (location, { flyTo = true } = {}) => {
     if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
+    if (isScanningRef.current) return;
 
     setExpandedCategory(null);
     setSelectedLocation(location);
@@ -221,6 +233,7 @@ export default function Home2() {
 
     sdEl.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (isScanningRef.current) return;
       handlePickLocationRef.current(SAN_DIEGO);
     });
 
@@ -242,6 +255,7 @@ export default function Home2() {
     });
 
     map.on('click', (e) => {
+      if (isScanningRef.current) return;
       const { lng, lat } = e.lngLat;
       // Show the selected marker
       if (markerRef.current) {
@@ -263,6 +277,10 @@ export default function Home2() {
   useEffect(() => {
     handlePickLocationRef.current = handlePickLocation;
   }, [handlePickLocation]);
+
+  useEffect(() => {
+    isScanningRef.current = isScanning;
+  }, [isScanning]);
 
   const highRiskSpecies = useMemo(() => {
     return (riskData?.results ?? []).filter(r => r.risk_label === 'High Risk');
@@ -434,7 +452,7 @@ export default function Home2() {
               <a href="#" className="text-white text-sm font-medium">Dashboard</a>
               <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Species</a>
               <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Reports</a>
-              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
+              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Why track? · Hawaii</Link>
             </nav>
 
             <div className="flex items-center gap-3">
@@ -541,21 +559,6 @@ export default function Home2() {
             </div>
           )}
 
-          {/* Case study nudge */}
-          <Link to="/hawaii" className="absolute bottom-6 right-6 group z-10">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 4, duration: 1 }}
-              className="bg-slate-900/80 backdrop-blur-xl rounded-2xl px-5 py-3 border border-slate-700/50 hover:border-slate-500/50 transition-all cursor-pointer"
-            >
-              <p className="text-sm text-slate-300 group-hover:text-white transition-colors flex items-center gap-2">
-                Why track invasive species?
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
-              </p>
-              <p className="text-xs text-slate-600 mt-0.5">A look at what happened to Hawaii</p>
-            </motion.div>
-          </Link>
         </div>
       </main>
 
