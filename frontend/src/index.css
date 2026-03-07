@@ -86,3 +86,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes globe-spin {
+  from { transform: rotateY(0deg) rotateX(-12deg); }
+  to { transform: rotateY(360deg) rotateX(-12deg); }
+}
+
+.animate-globe-spin {
+  animation: globe-spin 2.8s linear infinite;
+}
