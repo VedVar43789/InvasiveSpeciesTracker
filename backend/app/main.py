@@ -29,12 +29,12 @@ async def lifespan(app: FastAPI):
         df = pd.DataFrame(columns=["latitude", "longitude", "scientific_name", "common_name", "family"])
         set_df(df)
     
-    # ML data file - located at root/notebooks/vectorized_species_master.csv
-    # From backend/app/main.py, go up to root: ../../notebooks/vectorized_species_master.csv
+    # ML data file - located at root/notebooks/plants_metadata.csv
+    # This must match the dataset used by the FAISS risk engine
     import os
     backend_dir = os.path.dirname(os.path.dirname(__file__))  # backend/
     root_dir = os.path.dirname(backend_dir)  # root/
-    ml_data_path = os.path.join(root_dir, "notebooks", "vectorized_species_master_with_inat_ids.csv")
+    ml_data_path = os.path.join(root_dir, "notebooks", "plants_metadata.csv")
     ml_df = load_ml_data(ml_data_path)
     set_ml_df(ml_df)
     yield
