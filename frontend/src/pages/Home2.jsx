@@ -750,14 +750,73 @@ export default function Home2() {
             </div>
           </div>
 
-          {/* Scanning indicator */}
+          {/* Scanning indicator with globe */}
           {isScanning && (
-            <div className="absolute bottom-6 right-6 z-10">
-              <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl p-4 border border-slate-700/50 flex items-center gap-3">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                <p className="text-sm text-slate-300">
+            <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+              <div className="bg-slate-900/95 backdrop-blur-xl rounded-3xl p-8 border border-slate-700/50 flex flex-col items-center gap-5 shadow-2xl pointer-events-auto">
+                <div className="relative w-24 h-24 flex items-center justify-center" style={{ perspective: '280px' }}>
+                  <div className="animate-globe-spin w-20 h-20 flex items-center justify-center" style={{ transformStyle: 'preserve-3d' }}>
+                    <svg viewBox="0 0 100 100" className="w-full h-full" style={{ filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.4)) drop-shadow(0 0 16px rgba(59,130,246,0.25))' }}>
+                      <defs>
+                        {/* 3D sphere: highlight top-left, dark rim */}
+                        <radialGradient id="earth-sphere" cx="35%" cy="30%" r="65%" fx="32%" fy="28%">
+                          <stop offset="0%" stopColor="#93c5fd" />
+                          <stop offset="25%" stopColor="#60a5fa" />
+                          <stop offset="50%" stopColor="#3b82f6" />
+                          <stop offset="75%" stopColor="#2563eb" />
+                          <stop offset="100%" stopColor="#1e3a5f" />
+                        </radialGradient>
+                        {/* Subtle atmosphere rim */}
+                        <radialGradient id="earth-atmosphere" cx="50%" cy="50%" r="50%">
+                          <stop offset="85%" stopColor="transparent" />
+                          <stop offset="98%" stopColor="#bfdbfe" stopOpacity="0.4" />
+                          <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.2" />
+                        </radialGradient>
+                        <linearGradient id="globe-line" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#bfdbfe" stopOpacity="0.4" />
+                          <stop offset="50%" stopColor="#93c5fd" stopOpacity="0.85" />
+                          <stop offset="100%" stopColor="#bfdbfe" stopOpacity="0.4" />
+                        </linearGradient>
+                        <radialGradient id="earth-land" cx="40%" cy="35%" r="60%">
+                          <stop offset="0%" stopColor="#4ade80" />
+                          <stop offset="100%" stopColor="#166534" />
+                        </radialGradient>
+                        <clipPath id="globe-clip">
+                          <circle cx="50" cy="50" r="46" />
+                        </clipPath>
+                      </defs>
+                      <circle cx="50" cy="50" r="46" fill="url(#earth-sphere)" />
+                      {/* Continents: single path with connected landmasses (islands as separate subpaths) */}
+                      <g clipPath="url(#globe-clip)" fill="url(#earth-land)" fillOpacity="0.92" stroke="#14532d" strokeWidth="0.35" strokeOpacity="0.6">
+                        <path d="
+                          M 8 16 L 12 14 L 16 15 L 18 18 L 20 16 L 22 18 L 22 22 L 20 24 L 20 28 L 18 26 L 16 28 L 16 32 L 18 34 L 20 36 L 20 38 L 18 40 L 20 42 L 22 44 L 24 44 L 26 42 L 28 44 L 28 40 L 30 38 L 32 36 L 34 36 L 34 38 L 32 40 L 30 42 L 30 46 L 28 46 L 26 42 L 24 40 L 24 36 L 26 34 L 28 32 L 30 28 L 32 26 L 32 22 L 30 20 L 28 20 L 26 18 L 24 20 L 22 20 L 20 18 L 16 20 L 12 18 Z
+                          M 26 10 L 30 10 L 32 12 L 32 16 L 30 18 L 26 18 L 24 16 L 24 12 Z
+                          M 24 48 L 26 46 L 28 48 L 30 50 L 32 50 L 34 52 L 34 56 L 32 58 L 32 62 L 30 64 L 28 68 L 26 72 L 24 76 L 22 76 L 20 72 L 20 66 L 22 62 L 22 58 L 24 56 L 24 52 Z
+                          M 40 32 L 42 30 L 46 28 L 50 28 L 52 30 L 52 32 L 50 34 L 48 36 L 48 40 L 46 42 L 44 40 L 44 36 L 42 36 L 40 38 L 40 42 L 42 44 L 44 44 L 46 42 L 48 44 L 46 46 L 42 46 L 40 44 L 38 40 L 38 36 L 40 34 Z M 44 28 L 46 26 L 48 28 L 46 30 Z
+                          M 40 42 L 42 40 L 46 40 L 48 42 L 50 44 L 52 48 L 52 54 L 50 58 L 48 62 L 46 64 L 44 64 L 42 62 L 42 58 L 40 54 L 40 50 L 38 46 Z M 54 56 L 56 56 L 56 60 L 54 62 L 52 60 Z
+                          M 50 22 L 56 20 L 64 22 L 72 24 L 78 26 L 84 30 L 86 34 L 86 38 L 84 42 L 80 44 L 76 44 L 72 42 L 68 44 L 64 46 L 60 46 L 56 44 L 54 40 L 54 36 L 56 34 L 60 34 L 62 38 L 66 38 L 68 36 L 66 32 L 62 30 L 58 28 L 54 26 Z
+                          M 80 32 L 82 32 L 84 34 L 84 36 L 82 38 L 80 36 L 78 34 Z
+                          M 68 56 L 72 56 L 76 58 L 80 60 L 82 62 L 82 66 L 80 68 L 76 70 L 72 70 L 68 68 L 66 64 L 66 60 Z
+                          M 74 52 L 78 52 L 80 54 L 78 56 L 76 56 Z M 66 58 L 68 58 L 68 60 L 66 60 Z
+                        " />
+                      </g>
+                      <circle cx="50" cy="50" r="46" fill="url(#earth-atmosphere)" />
+                      <circle cx="50" cy="50" r="46" fill="none" stroke="#1e40af" strokeWidth="0.6" opacity="0.5" />
+                      {/* Latitude lines */}
+                      <ellipse cx="50" cy="50" rx="46" ry="12" fill="none" stroke="url(#globe-line)" strokeWidth="0.7" opacity="0.85" />
+                      <ellipse cx="50" cy="50" rx="46" ry="26" fill="none" stroke="url(#globe-line)" strokeWidth="0.55" opacity="0.65" />
+                      <ellipse cx="50" cy="50" rx="46" ry="38" fill="none" stroke="url(#globe-line)" strokeWidth="0.45" opacity="0.45" />
+                      {/* Longitude lines */}
+                      <path d="M 50 4 A 46 46 0 0 1 50 96 A 46 46 0 0 1 50 4" fill="none" stroke="url(#globe-line)" strokeWidth="0.65" opacity="0.8" />
+                      <path d="M 50 4 A 46 46 0 0 0 50 96 A 46 46 0 0 0 50 4" fill="none" stroke="url(#globe-line)" strokeWidth="0.5" opacity="0.55" />
+                      <ellipse cx="50" cy="50" rx="12" ry="46" fill="none" stroke="url(#globe-line)" strokeWidth="0.55" opacity="0.65" />
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-slate-200">
                   Scanning {selectedLocation?.name || formatCoords(selectedLocation) || 'location'}...
                 </p>
+                <p className="text-xs text-slate-500">Analyzing species & observations</p>
               </div>
             </div>
           )}
