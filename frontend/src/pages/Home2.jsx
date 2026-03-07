@@ -15,6 +15,7 @@ import { scanRisk, getSpeciesByLocation, getINatTaxonProfile, getWikipediaSummar
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const SAN_DIEGO = { lat: 32.7157, lng: -117.1611, name: "San Diego" };
+const HONOLULU = { lat: 21.3069, lng: -157.8583, name: "Honolulu" };
 const SEARCH_ITEM_HEIGHT = 92;
 const SEARCH_OVERSCAN = 8;
 
@@ -83,7 +84,7 @@ export default function Home2() {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const sdMarkerRef = useRef(null);
-  const hasAutoScanned = useRef(false);
+  const hiMarkerRef = useRef(null);
   const isScanningRef = useRef(false);
   const searchResultsRef = useRef(null);
   const speciesStaticCacheRef = useRef(new Map());
@@ -273,21 +274,32 @@ export default function Home2() {
       handlePickLocationRef.current(SAN_DIEGO);
     });
 
-    // Selected-location marker (cyan, starts hidden at SD)
+    // Honolulu permanent marker
+    const hiEl = document.createElement('div');
+    hiEl.style.cssText = 'width:16px;height:16px;background:white;border-radius:50%;border:2px solid rgba(234,179,8,0.8);box-shadow:0 0 8px rgba(234,179,8,0.5);cursor:pointer;';
+    hiMarkerRef.current = new mapboxgl.Marker({ element: hiEl })
+      .setLngLat([HONOLULU.lng, HONOLULU.lat])
+      .setPopup(new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML(
+        '<div style="font-size:13px;font-weight:600;">Honolulu</div>' +
+        '<div style="font-size:11px;color:#94a3b8;">Click to scan</div>'
+      ))
+      .addTo(map);
+
+    hiEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (isScanningRef.current) return;
+      handlePickLocationRef.current(HONOLULU);
+    });
+
+    // Selected-location marker (cyan, starts hidden)
     const selEl = document.createElement('div');
     selEl.style.cssText = 'width:14px;height:14px;background:rgb(34,211,238);border-radius:50%;border:2px solid rgba(34,211,238,0.4);box-shadow:0 0 10px rgba(34,211,238,0.6);display:none;';
     markerRef.current = new mapboxgl.Marker({ element: selEl })
-      .setLngLat([SAN_DIEGO.lng, SAN_DIEGO.lat])
+      .setLngLat([HONOLULU.lng, HONOLULU.lat])
       .addTo(map);
 
     map.on('load', () => {
-      // Fly to San Diego and auto-scan
-      map.flyTo({ center: [SAN_DIEGO.lng, SAN_DIEGO.lat], zoom: 7, duration: 2500 });
-
-      if (!hasAutoScanned.current) {
-        hasAutoScanned.current = true;
-        setTimeout(() => handlePickLocationRef.current(SAN_DIEGO, { flyTo: false }), 2800);
-      }
+      map.flyTo({ center: [HONOLULU.lng, HONOLULU.lat], zoom: 7, duration: 2500 });
     });
 
     map.on('click', async (e) => {
@@ -509,7 +521,7 @@ export default function Home2() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white font-body overflow-hidden">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -519,18 +531,20 @@ export default function Home2() {
                 <Globe2 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                <h1 className="text-xl font-display font-semibold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                   InvasiveWatch
                 </h1>
-                <p className="text-xs text-slate-500">Global Species Tracker</p>
+                <p className="text-[11px] text-slate-500 tracking-wide">Global Species Tracker</p>
               </div>
             </div>
 
             <nav className="hidden md:flex items-center gap-8">
-              <a href="#" className="text-white text-sm font-medium">Dashboard</a>
-              <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Species</a>
-              <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Reports</a>
-              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Why track? · Hawaii</Link>
+              <Link to="/" className="text-slate-400 text-sm hover:text-white transition-colors">Home</Link>
+              <span className="text-white text-sm font-medium relative">
+                Dashboard
+                <span className="absolute -bottom-1 left-0 right-0 h-px bg-gradient-to-r from-cyan-500 to-blue-500" />
+              </span>
+              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
             </nav>
 
             <div className="flex items-center gap-3">
@@ -694,7 +708,7 @@ export default function Home2() {
               {/* Modal header */}
               <div className="flex items-center justify-between p-6 border-b border-slate-800">
                 <div>
-                  <h2 className="text-xl font-bold text-white">
+                  <h2 className="text-xl font-display font-semibold tracking-tight text-white">
                     {(selectedLocation?.name || 'Location')} Risk Analysis
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
