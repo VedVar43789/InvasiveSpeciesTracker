@@ -50,9 +50,21 @@ export function LocationSearchBar({ onLocationFound, isLoading = false }) {
     setError(null);
     setIsSearching(true);
 
+    const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    if (!mapboxToken) {
+      setIsSearching(false);
+      setError(
+        'Location search is not configured correctly. Please contact support or an administrator.'
+      );
+      console.error('Mapbox token (VITE_MAPBOX_TOKEN) is missing or empty.');
+      return;
+    }
+
     try {
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${import.meta.env.VITE_MAPBOX_TOKEN}&limit=1`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          query
+        )}.json?access_token=${mapboxToken}&limit=1`
       );
 
       if (!response.ok) {
