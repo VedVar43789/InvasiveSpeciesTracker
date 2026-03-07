@@ -18,6 +18,50 @@ import {
   Globe2, Leaf, Bug, ArrowLeft, Package, Plane, Globe, AlertTriangle
 } from 'lucide-react';
 
+// ── Animation helpers ─────────────────────────────────────────────────────
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 48 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.12, delayChildren: 0.1 },
+  },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+};
+
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.6 } },
+};
+
+const scaleIn = {
+  hidden: { opacity: 0, scale: 0.88 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+};
+
+function RevealSection({ children, className = "", as: Tag = "section", margin = "-12% 0px", variants: v = sectionVariants }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin });
+  const MotionTag = motion[Tag] || motion.section;
+  return (
+    <MotionTag ref={ref} variants={v} initial="hidden" animate={inView ? "visible" : "hidden"} className={className}>
+      {children}
+    </MotionTag>
+  );
+}
+
 // ── Citation helper ──────────────────────────────────────────────────────
 
 function Cite({ href, n }) {
@@ -26,7 +70,7 @@ function Cite({ href, n }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center justify-center text-[9px] text-cyan-400/70 hover:text-cyan-300 align-super ml-0.5 no-underline"
+      className="inline-flex items-center justify-center text-[9px] text-cyan-400/70 hover:text-cyan-300 align-super ml-0.5 no-underline transition-colors"
       title="View source"
     >
       [{n}]
@@ -104,86 +148,6 @@ const FAILED_RESPONSES = [
   { title: 'Public Awareness — "Education and reporting"', body: 'Campaigns urging hikers to clean gear and report sightings have created genuine engagement. Yet most reporting systems operate reactively: a citizen reports what they see, an agency responds weeks later. By then, a new population may be well established. The challenge is not awareness — it is speed.' },
 ];
 
-// Per-island data for modal popups
-const ISLANDS = [
-  {
-    name: 'Niihau', severity: 'yellow', threats: 12,
-    species: [
-      { name: 'Feral Pig', risk: 'Moderate Risk', note: 'Small population, limited range' },
-      { name: 'Fountain Grass', risk: 'Low Risk', note: 'Scattered along dry western coast' },
-    ],
-    summary: 'Privately owned with restricted access. Minimal invasive pressure compared to other islands, but feral ungulates remain a concern.',
-  },
-  {
-    name: 'Kauai', severity: 'orange', threats: 89,
-    species: [
-      { name: 'Avian Malaria', risk: 'High Risk', note: 'Mosquito-borne; devastating remaining forest birds' },
-      { name: 'Strawberry Guava', risk: 'High Risk', note: 'Dominant understory across wet forests' },
-      { name: 'Feral Pig', risk: 'High Risk', note: 'Creates mosquito breeding pools in wallows' },
-      { name: 'Coqui Frog', risk: 'Moderate Risk', note: 'Recently detected, containment ongoing' },
-    ],
-    summary: 'The oldest main island. Home to the last wild populations of several critically endangered birds, all threatened by mosquito-borne avian malaria expanding upslope with warming temperatures.',
-  },
-  {
-    name: 'Oahu', severity: 'red', threats: 247,
-    species: [
-      { name: 'Little Fire Ant', risk: 'High Risk', note: 'Established in multiple valleys' },
-      { name: 'Coconut Rhinoceros Beetle', risk: 'High Risk', note: 'Active eradication effort since 2013' },
-      { name: 'Brown Tree Snake', risk: 'High Risk', note: 'Interdiction program at ports — not yet established' },
-      { name: 'Miconia', risk: 'High Risk', note: 'Targeted removal in Koolau range' },
-      { name: 'Coqui Frog', risk: 'Moderate Risk', note: 'Multiple populations across windward side' },
-    ],
-    summary: 'Most urbanized island, highest port traffic. Primary entry point for new invasives. The coconut rhinoceros beetle fight has cost over $20M since detection.',
-  },
-  {
-    name: 'Molokai', severity: 'orange', threats: 64,
-    species: [
-      { name: 'Axis Deer', risk: 'High Risk', note: 'Severe overgrazing, population over 50,000' },
-      { name: 'Feral Pig', risk: 'High Risk', note: 'Damaging native watershed forests' },
-      { name: 'Albizia', risk: 'Moderate Risk', note: 'Fast-growing tree displacing native canopy' },
-    ],
-    summary: 'Axis deer population has exploded beyond carrying capacity, stripping vegetation and causing severe erosion. Residents report bare hillsides where forest stood a decade ago.',
-  },
-  {
-    name: 'Lanai', severity: 'yellow', threats: 38,
-    species: [
-      { name: 'Axis Deer', risk: 'High Risk', note: 'Population of ~30,000 on 141 sq mi island' },
-      { name: 'Fountain Grass', risk: 'Moderate Risk', note: 'Increasing fire risk in dry lowlands' },
-    ],
-    summary: 'Once the world\'s largest pineapple plantation. Axis deer now outnumber people roughly 30 to 1, preventing any native forest regeneration.',
-  },
-  {
-    name: 'Maui', severity: 'red', threats: 183,
-    species: [
-      { name: 'Miconia', risk: 'High Risk', note: 'Major infestation in East Maui watershed' },
-      { name: 'Coqui Frog', risk: 'High Risk', note: 'Widespread across East Maui' },
-      { name: 'Axis Deer', risk: 'High Risk', note: 'Expanding into native forest areas' },
-      { name: 'Rapid Ohia Death', risk: 'High Risk', note: 'Not yet confirmed — highest vigilance' },
-      { name: 'Albizia', risk: 'Moderate Risk', note: 'Colonizing disturbed areas rapidly' },
-    ],
-    summary: 'Miconia has been the target of Hawaii\'s longest-running invasive plant control effort. Despite $15M spent, complete eradication has proven impossible in the wet East Maui forest.',
-  },
-  {
-    name: 'Kahoolawe', severity: 'yellow', threats: 8,
-    species: [
-      { name: 'Kiawe', risk: 'Moderate Risk', note: 'Dominant vegetation on eroded landscape' },
-    ],
-    summary: 'Uninhabited island, formerly used as military bombing range. Severely eroded with limited native vegetation remaining. Restoration efforts ongoing.',
-  },
-  {
-    name: 'Hawaii', severity: 'red', threats: 312,
-    species: [
-      { name: 'Rapid Ohia Death', risk: 'High Risk', note: 'Epicenter of outbreak — millions of trees dead' },
-      { name: 'Coqui Frog', risk: 'High Risk', note: 'Densest populations anywhere; up to 10,000/acre' },
-      { name: 'Little Fire Ant', risk: 'High Risk', note: 'Established in Puna, spreading' },
-      { name: 'Feral Pig', risk: 'High Risk', note: 'Major vector for disease and erosion' },
-      { name: 'Albizia', risk: 'High Risk', note: 'Falls on power lines during storms, causes outages' },
-      { name: 'Strawberry Guava', risk: 'High Risk', note: 'Dominant in wet forest understory' },
-    ],
-    summary: 'The Big Island is ground zero for Rapid Ohia Death, which has killed over 1 million ohia trees since 2014. As the largest and youngest island, it has the most diverse habitats — and the most to lose.',
-  },
-];
-
 const ARRIVAL_TICKER_SPECIES = [
   'Coqui Frog', 'Fire Ant', 'Strawberry Guava', 'Mongoose', 'Varroa Mite',
   'Miconia', 'Fountain Grass', 'Coconut Rhinoceros Beetle', 'Axis Deer',
@@ -204,6 +168,12 @@ const severityColor = {
   red: 'bg-red-500',
   orange: 'bg-orange-500',
   yellow: 'bg-yellow-500',
+};
+
+const severityGlow = {
+  red: 'shadow-[0_0_8px_rgba(239,68,68,0.5)]',
+  orange: 'shadow-[0_0_8px_rgba(249,115,22,0.5)]',
+  yellow: 'shadow-[0_0_8px_rgba(234,179,8,0.5)]',
 };
 
 // ── Animated Counter ─────────────────────────────────────────────────────
@@ -237,12 +207,10 @@ function ScrollProgressBar() {
   return (
     <motion.div
       style={{ scaleX, transformOrigin: '0%' }}
-      className="fixed top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-500 to-blue-500 z-[60]"
+      className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 z-[60]"
     />
   );
 }
-
-
 
 // ── Species Arrival Ticker ───────────────────────────────────────────────
 
@@ -250,27 +218,28 @@ function ArrivalTicker() {
   const doubled = [...ARRIVAL_TICKER_SPECIES, ...ARRIVAL_TICKER_SPECIES];
 
   return (
-    <section className="py-10 overflow-hidden border-y border-slate-800/50 bg-slate-950/50">
-      <p className="text-center text-xs text-slate-600 uppercase tracking-widest mb-4">
+    <RevealSection variants={fadeIn} className="py-12 overflow-hidden border-y border-slate-800/30 bg-slate-950/60 relative">
+      <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/[0.02] via-transparent to-red-500/[0.02]" />
+      <p className="text-center text-[11px] font-body text-slate-500 uppercase tracking-[0.25em] mb-5 relative z-10">
         20+ new species arrive in Hawaii every year
       </p>
       <div className="relative">
-        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-slate-950 to-transparent z-10" />
-        <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-slate-950 to-transparent z-10" />
+        <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-slate-950 to-transparent z-10" />
+        <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-slate-950 to-transparent z-10" />
         <motion.div
           animate={{ x: ['0%', '-50%'] }}
           transition={{ repeat: Infinity, duration: 30, ease: 'linear' }}
-          className="flex items-center gap-6 whitespace-nowrap"
+          className="flex items-center gap-8 whitespace-nowrap"
         >
           {doubled.map((species, i) => (
-            <span key={i} className="text-sm text-slate-500 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500/60" />
+            <span key={i} className="text-sm font-body text-slate-500/80 flex items-center gap-2.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500/60 animate-glow-pulse" />
               {species}
             </span>
           ))}
         </motion.div>
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
@@ -278,24 +247,28 @@ function ArrivalTicker() {
 
 function Header() {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-sm border-b border-slate-800/50">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/30">
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl">
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
               <Globe2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">
+              <h1 className="text-xl font-display text-white tracking-tight">
                 InvasiveWatch
               </h1>
-              <p className="text-xs text-slate-500">Global Species Tracker</p>
+              <p className="text-[11px] font-body text-slate-500 tracking-wide">Global Species Tracker</p>
             </div>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
-            <Link to="/" className="text-slate-400 text-sm hover:text-white transition-colors">Dashboard</Link>
-            <span className="text-white text-sm font-medium">Research</span>
+            <Link to="/" className="text-slate-400 text-sm font-body hover:text-white transition-colors">Home</Link>
+            <Link to="/dashboard" className="text-slate-400 text-sm font-body hover:text-white transition-colors">Dashboard</Link>
+            <span className="text-white text-sm font-body font-medium relative">
+              Research
+              <span className="absolute -bottom-1 left-0 right-0 h-px bg-gradient-to-r from-cyan-500 to-blue-500" />
+            </span>
           </nav>
         </div>
       </div>
@@ -305,83 +278,92 @@ function Header() {
 
 function PageIntro() {
   return (
-    <section className="px-6 pt-8 pb-12 border-b border-slate-800/50">
-      <div className="max-w-4xl mx-auto">
-        <p className="text-xs uppercase tracking-widest text-slate-500 mb-2">Case Study</p>
-        <h2 className="text-3xl md:text-4xl font-bold text-white">
+    <RevealSection variants={staggerContainer} className="px-6 pt-12 pb-16 border-b border-slate-800/30 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-radial from-cyan-500/[0.04] to-transparent rounded-full blur-3xl" />
+      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-radial from-red-500/[0.03] to-transparent rounded-full blur-3xl" />
+
+      <div className="max-w-4xl mx-auto relative z-10">
+        <motion.p variants={fadeUp} className="text-[11px] font-body uppercase tracking-[0.3em] text-cyan-400/70 mb-3">
+          Case Study
+        </motion.p>
+        <motion.h2 variants={fadeUp} className="text-4xl md:text-6xl font-display text-white leading-[1.1] tracking-tight">
           Hawaii's Silent War
-        </h2>
-        <p className="text-lg text-slate-500 mt-2">
+        </motion.h2>
+        <motion.p variants={fadeUp} className="text-lg md:text-xl font-body text-slate-400 mt-3 tracking-wide">
           One Archipelago. 10,000 Threats.
-        </p>
-        <p className="mt-4 text-sm text-slate-400 max-w-2xl leading-relaxed">
-          Hawaii loses species faster than anywhere on Earth — and by the time threats are detected, it's often too late. InvasiveWatch uses predictive modeling to identify high-risk species <em>before</em> they establish, giving agencies the early warning that reactive monitoring can't.
-        </p>
-        <blockquote className="mt-6 text-sm text-slate-400 italic border-l-2 border-slate-700 pl-4 max-w-2xl">
+        </motion.p>
+        <motion.p variants={fadeUp} className="mt-6 text-[15px] font-body text-slate-400/90 max-w-2xl leading-[1.8]">
+          Hawaii loses species faster than anywhere on Earth — and by the time threats are detected, it's often too late. InvasiveWatch uses predictive modeling to identify high-risk species <em className="text-slate-300 not-italic">before</em> they establish, giving agencies the early warning that reactive monitoring can't.
+        </motion.p>
+        <motion.blockquote
+          variants={fadeUp}
+          className="mt-8 text-[15px] font-body text-slate-400/80 italic border-l-2 border-cyan-500/30 pl-5 max-w-2xl leading-[1.8]"
+        >
           "The one process now going on that will take millions of years to correct is the loss of genetic and species diversity by the destruction of natural habitats. This is the folly our descendants are least likely to forgive us."
-          <span className="block mt-1 text-xs text-slate-500 not-italic">— E.O. Wilson, biologist</span>
-        </blockquote>
+          <span className="block mt-2 text-xs text-slate-500 not-italic tracking-wide">— E.O. Wilson, biologist</span>
+        </motion.blockquote>
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
 function StatsBar() {
   return (
-    <section className="py-12 px-6">
-      <div className="max-w-4xl mx-auto flex flex-wrap items-baseline gap-x-10 gap-y-6">
+    <RevealSection variants={staggerContainer} className="py-14 px-6">
+      <div className="max-w-4xl mx-auto flex flex-wrap items-baseline gap-x-12 gap-y-8">
         {STATS.map((stat, i) => (
           <React.Fragment key={stat.label}>
-            <div>
-              <p className="text-2xl md:text-3xl font-bold text-white tabular-nums">
+            <motion.div variants={scaleIn} className="group">
+              <p className="text-3xl md:text-4xl font-display text-white tabular-nums">
                 {stat.prefix}<CountUp target={stat.value} />{stat.suffix}
               </p>
-              <p className="text-sm text-slate-400 mt-0.5">{stat.label}{stat.cite && <Cite href={stat.cite.href} n={stat.cite.n} />}</p>
-            </div>
-            {i < STATS.length - 1 && <div className="hidden md:block w-px h-10 bg-slate-800" />}
+              <p className="text-sm font-body text-slate-400 mt-1 group-hover:text-slate-300 transition-colors">
+                {stat.label}{stat.cite && <Cite href={stat.cite.href} n={stat.cite.n} />}
+              </p>
+            </motion.div>
+            {i < STATS.length - 1 && <div className="hidden md:block w-px h-12 bg-gradient-to-b from-transparent via-slate-700/50 to-transparent" />}
           </React.Fragment>
         ))}
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
 function CrisisSection() {
   return (
-    <section className="py-24 px-6">
-      <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-16">
-        <div>
-          <h3 className="text-3xl font-bold text-white mb-8">
+    <section className="py-28 px-6 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/20 to-transparent" />
+      <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-20 relative z-10">
+        <RevealSection as="div" variants={staggerContainer} className="">
+          <motion.h3 variants={fadeUp} className="text-4xl font-display text-white mb-10 tracking-tight">
             An Archipelago Under Siege
-          </h3>
-          <div className="space-y-5 text-slate-400 leading-relaxed">
-            <p>
-              Hawaii's geographic isolation made it one of the most biologically unique places on Earth. Over millions of years, species arrived roughly once every 100,000 years by wind, ocean currents, and birds. This extreme isolation produced extraordinary endemism — more than 90% of Hawaii's native species are found nowhere else.<Cite href="https://www.nfwf.org/landscapes/hawaii" n={5} />
-            </p>
-            <p>
-              The first wave of disruption came with Polynesian settlers around 400 CE, who introduced pigs, rats, and dozens of plant species. Within centuries, 50+ bird species that had evolved with no ground predators were driven to extinction. But this was only the beginning.
-            </p>
-            <p>
-              European contact in 1778 opened the floodgates. Deliberate introductions of cattle, goats, and mongoose — along with accidental stowaways — multiplied the pressure. By 1900, alien species outnumbered native species in most lowland areas.
-            </p>
-            <p>
-              Today, new invasive species arrive in Hawaii at an estimated rate of 20 per year.<Cite href="https://www.ctahr.hawaii.edu/adap/hottopics/invasive_species.htm" n={6} /> The archipelago lacks the continental buffer zones that allow other ecosystems to absorb pressure. What would be a local problem elsewhere becomes an extinction event in Hawaii.
-            </p>
-          </div>
-        </div>
-
-        <div className="relative pl-8">
-          <div className="absolute left-3 top-0 bottom-0 w-px bg-slate-700/50" />
-          <div className="space-y-8">
-            {TIMELINE_EVENTS.map((ev) => (
-              <div key={ev.year} className="relative">
-                <div className={`absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full ${severityColor[ev.severity]}`} />
-                <p className="text-sm font-semibold text-slate-300">{ev.year}</p>
-                <p className="text-sm text-slate-500 mt-1">{ev.event}{ev.cite && <Cite href={ev.cite.href} n={ev.cite.n} />}</p>
-              </div>
+          </motion.h3>
+          <div className="space-y-6">
+            {[
+              <>Hawaii's geographic isolation made it one of the most biologically unique places on Earth. Over millions of years, species arrived roughly once every 100,000 years by wind, ocean currents, and birds. This extreme isolation produced extraordinary endemism — more than 90% of Hawaii's native species are found nowhere else.<Cite href="https://www.nfwf.org/landscapes/hawaii" n={5} /></>,
+              <>The first wave of disruption came with Polynesian settlers around 400 CE, who introduced pigs, rats, and dozens of plant species. Within centuries, 50+ bird species that had evolved with no ground predators were driven to extinction. But this was only the beginning.</>,
+              <>European contact in 1778 opened the floodgates. Deliberate introductions of cattle, goats, and mongoose — along with accidental stowaways — multiplied the pressure. By 1900, alien species outnumbered native species in most lowland areas.</>,
+              <>Today, new invasive species arrive in Hawaii at an estimated rate of 20 per year.<Cite href="https://www.ctahr.hawaii.edu/adap/hottopics/invasive_species.htm" n={6} /> The archipelago lacks the continental buffer zones that allow other ecosystems to absorb pressure. What would be a local problem elsewhere becomes an extinction event in Hawaii.</>,
+            ].map((text, i) => (
+              <motion.p key={i} variants={fadeUp} className="text-[15px] font-body text-slate-400/90 leading-[1.8]">
+                {text}
+              </motion.p>
             ))}
           </div>
-        </div>
+        </RevealSection>
+
+        <RevealSection as="div" variants={staggerContainer} className="relative pl-10">
+          <div className="absolute left-3 top-0 bottom-0 w-px bg-gradient-to-b from-cyan-500/30 via-slate-700/30 to-red-500/30" />
+          <div className="space-y-10">
+            {TIMELINE_EVENTS.map((ev, i) => (
+              <motion.div key={ev.year} variants={fadeUp} className="relative group">
+                <div className={`absolute -left-7 top-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${severityColor[ev.severity]} ${severityGlow[ev.severity]} transition-shadow`} />
+                <p className="text-sm font-display text-white tracking-wide">{ev.year}</p>
+                <p className="text-sm font-body text-slate-500 mt-1 leading-relaxed group-hover:text-slate-400 transition-colors">{ev.event}{ev.cite && <Cite href={ev.cite.href} n={ev.cite.n} />}</p>
+              </motion.div>
+            ))}
+          </div>
+        </RevealSection>
       </div>
     </section>
   );
@@ -389,248 +371,269 @@ function CrisisSection() {
 
 function SpeciesCard({ species }) {
   return (
-    <div className="py-4">
-      <div className="flex items-start justify-between mb-1">
+    <motion.div variants={fadeUp} className="py-5 group">
+      <div className="flex items-start justify-between mb-1.5">
         <div>
-          <h4 className="text-white font-medium">{species.commonName}</h4>
-          <p className="text-xs text-slate-500 italic">{species.scientificName} · {species.origin}</p>
+          <h4 className="text-white font-body font-medium group-hover:text-cyan-300 transition-colors">{species.commonName}</h4>
+          <p className="text-xs font-body text-slate-500 italic">{species.scientificName} · {species.origin}</p>
         </div>
         <Badge className={getRiskBadgeStyle(species.riskLevel)}>{species.riskLevel}</Badge>
       </div>
-      <p className="text-sm text-slate-400 mt-2 leading-relaxed">{species.impact}{species.cite && <Cite href={species.cite.href} n={species.cite.n} />}</p>
-      <div className="flex items-center gap-2 mt-3">
+      <p className="text-sm font-body text-slate-400 mt-2 leading-[1.7]">{species.impact}{species.cite && <Cite href={species.cite.href} n={species.cite.n} />}</p>
+      <div className="flex items-center gap-3 mt-3">
         <Progress value={species.coveragePercent} className="h-1.5 flex-1 bg-slate-800" />
-        <span className="text-xs text-slate-500 tabular-nums">{species.coveragePercent}%</span>
+        <span className="text-xs font-body text-slate-500 tabular-nums">{species.coveragePercent}%</span>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 function SpeciesSpotlightSection() {
   return (
-    <section className="py-24 px-6">
+    <RevealSection className="py-28 px-6">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h3 className="text-3xl font-bold text-white">Species That Changed Everything</h3>
-          <p className="text-slate-500 mt-2">A few of the organisms reshaping Hawaii's ecosystems.</p>
+        <div className="mb-10">
+          <h3 className="text-4xl font-display text-white tracking-tight">Species That Changed Everything</h3>
+          <p className="text-slate-500 font-body mt-3">A few of the organisms reshaping Hawaii's ecosystems.</p>
         </div>
 
         <Tabs defaultValue="plants" className="w-full">
-          <TabsList className="bg-slate-800/50 border border-slate-700/50 mx-auto flex w-fit">
-            <TabsTrigger value="plants" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white text-slate-400">
+          <TabsList className="bg-slate-800/30 border border-slate-700/30 mx-auto flex w-fit rounded-full p-1">
+            <TabsTrigger value="plants" className="data-[state=active]:bg-slate-700/80 data-[state=active]:text-white text-slate-400 rounded-full font-body text-sm px-5 transition-all">
               <Leaf className="w-4 h-4 mr-1.5" /> Plants
             </TabsTrigger>
-            <TabsTrigger value="animals" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white text-slate-400">
+            <TabsTrigger value="animals" className="data-[state=active]:bg-slate-700/80 data-[state=active]:text-white text-slate-400 rounded-full font-body text-sm px-5 transition-all">
               <AlertTriangle className="w-4 h-4 mr-1.5" /> Animals
             </TabsTrigger>
-            <TabsTrigger value="insects" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white text-slate-400">
+            <TabsTrigger value="insects" className="data-[state=active]:bg-slate-700/80 data-[state=active]:text-white text-slate-400 rounded-full font-body text-sm px-5 transition-all">
               <Bug className="w-4 h-4 mr-1.5" /> Insects & Pathogens
             </TabsTrigger>
           </TabsList>
 
           {Object.entries(SPECIES_DATA).map(([key, species]) => (
-            <TabsContent key={key} value={key} className="mt-6">
-              <div className="divide-y divide-slate-800/60">
+            <TabsContent key={key} value={key} className="mt-8">
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+                className="divide-y divide-slate-800/40"
+              >
                 {species.map(s => <SpeciesCard key={s.scientificName} species={s} />)}
-              </div>
+              </motion.div>
             </TabsContent>
           ))}
         </Tabs>
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
 const chartTooltipStyle = {
-  contentStyle: { background: 'rgba(15, 23, 42, 0.95)', border: '1px solid rgba(51, 65, 85, 0.5)', borderRadius: '8px', color: '#e2e8f0' },
+  contentStyle: { background: 'rgba(15, 23, 42, 0.95)', border: '1px solid rgba(51, 65, 85, 0.3)', borderRadius: '12px', color: '#e2e8f0', fontFamily: '"DM Sans", sans-serif', fontSize: '13px' },
   itemStyle: { color: '#e2e8f0' },
   labelStyle: { color: '#94a3b8' },
 };
 
 function EcologicalImpactSection() {
   return (
-    <section className="py-24 px-6 bg-slate-900/30">
-      <div className="max-w-4xl mx-auto">
-        <h3 className="text-3xl font-bold text-white mb-2">The Inversion</h3>
-        <p className="text-slate-500 mb-8">Native vs. invasive species counts over time</p>
+    <RevealSection className="py-28 px-6 bg-slate-900/20 relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.015] to-transparent" />
+      <div className="max-w-4xl mx-auto relative z-10">
+        <h3 className="text-4xl font-display text-white mb-3 tracking-tight">The Inversion</h3>
+        <p className="text-slate-500 font-body mb-10">Native vs. invasive species counts over time</p>
 
-        <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={ECOLOGICAL_DATA} barGap={2}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.4)" />
-            <XAxis dataKey="era" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
-            <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
-            <Tooltip {...chartTooltipStyle} />
-            <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
-            <Bar dataKey="native" name="Native Species" fill="#22d3ee" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="invasive" name="Invasive Species" fill="#ef4444" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-        <p className="text-slate-500 text-sm italic mt-4">
+        <motion.div variants={scaleIn}>
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={ECOLOGICAL_DATA} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.25)" />
+              <XAxis dataKey="era" tick={{ fill: '#94a3b8', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }} axisLine={{ stroke: '#1e293b' }} />
+              <YAxis tick={{ fill: '#94a3b8', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }} axisLine={{ stroke: '#1e293b' }} />
+              <Tooltip {...chartTooltipStyle} />
+              <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }} />
+              <Bar dataKey="native" name="Native Species" fill="#22d3ee" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="invasive" name="Invasive Species" fill="#ef4444" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </motion.div>
+        <p className="text-slate-500 text-sm font-body italic mt-6">
           For every native species present today, Hawaii has nearly four invasive species competing for the same resources.
         </p>
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
 function SpreadMechanicsSection() {
   return (
-    <section className="py-24 px-6 bg-slate-900/30">
+    <RevealSection variants={staggerContainer} className="py-28 px-6 bg-slate-900/20">
       <div className="max-w-4xl mx-auto">
-        <h3 className="text-3xl font-bold text-white mb-3">How Species Cross the Pacific</h3>
-        <p className="text-slate-500 mb-10">The pathways that keep the invasion accelerating.</p>
+        <motion.h3 variants={fadeUp} className="text-4xl font-display text-white mb-4 tracking-tight">How Species Cross the Pacific</motion.h3>
+        <motion.p variants={fadeUp} className="text-slate-500 font-body mb-12">The pathways that keep the invasion accelerating.</motion.p>
 
-        <div className="space-y-6">
+        <div className="space-y-1">
           {PATHWAYS.map((pw) => (
-            <div key={pw.title} className="flex gap-4 items-start">
-              <pw.icon className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
-              <div>
-                <h4 className="text-base font-medium text-white mb-1">{pw.title}</h4>
-                <p className="text-sm text-slate-400 leading-relaxed">{pw.body}{pw.cite && <Cite href={pw.cite.href} n={pw.cite.n} />}</p>
+            <motion.div
+              key={pw.title}
+              variants={fadeUp}
+              className="flex gap-5 items-start p-5 rounded-2xl hover:bg-slate-800/20 transition-colors group"
+            >
+              <div className="p-2.5 rounded-xl bg-slate-800/50 group-hover:bg-slate-700/50 transition-colors shrink-0">
+                <pw.icon className="w-5 h-5 text-cyan-400/70 group-hover:text-cyan-400 transition-colors" />
               </div>
-            </div>
+              <div>
+                <h4 className="text-base font-body font-medium text-white mb-1.5">{pw.title}</h4>
+                <p className="text-sm font-body text-slate-400 leading-[1.7]">{pw.body}{pw.cite && <Cite href={pw.cite.href} n={pw.cite.n} />}</p>
+              </div>
+            </motion.div>
           ))}
         </div>
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
 function BiodiversityLossSection() {
   return (
-    <section className="py-24 px-6">
-      <div className="max-w-4xl mx-auto">
-        <blockquote className="text-lg md:text-xl text-slate-300 italic mb-10 leading-relaxed max-w-3xl border-l-2 border-red-500/40 pl-4">
+    <RevealSection variants={staggerContainer} className="py-28 px-6 relative">
+      <div className="absolute inset-0 bg-gradient-to-t from-red-500/[0.02] to-transparent" />
+      <div className="max-w-4xl mx-auto relative z-10">
+        <motion.blockquote
+          variants={fadeUp}
+          className="text-xl md:text-2xl font-display text-slate-200 italic mb-12 leading-[1.5] max-w-3xl border-l-2 border-red-500/40 pl-6"
+        >
           "Of the 71 native forest bird species documented at European contact, only 12 survive today. No other place on Earth has lost more bird species in recorded history."
           <Cite href="https://dlnr.hawaii.gov/wildlife/birds/" n={15} />
-        </blockquote>
+        </motion.blockquote>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={BIRD_DECLINE_DATA}>
-            <defs>
-              <linearGradient id="birdDecline" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.4)" />
-            <XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} />
-            <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} domain={[0, 80]} />
-            <Tooltip {...chartTooltipStyle} />
-            <Area type="monotone" dataKey="species" name="Surviving Species" stroke="#ef4444" fill="url(#birdDecline)" strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
-        <p className="text-slate-600 text-xs mt-4">
+        <motion.div variants={scaleIn}>
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={BIRD_DECLINE_DATA}>
+              <defs>
+                <linearGradient id="birdDecline" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.25)" />
+              <XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }} axisLine={{ stroke: '#1e293b' }} />
+              <YAxis tick={{ fill: '#94a3b8', fontSize: 12, fontFamily: '"DM Sans", sans-serif' }} axisLine={{ stroke: '#1e293b' }} domain={[0, 80]} />
+              <Tooltip {...chartTooltipStyle} />
+              <Area type="monotone" dataKey="species" name="Surviving Species" stroke="#ef4444" fill="url(#birdDecline)" strokeWidth={2.5} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </motion.div>
+        <motion.p variants={fadeUp} className="text-slate-600 text-xs font-body mt-5">
           Data compiled from IUCN Red List, USGS Hawaiian Forest Bird Survey, and State of Hawaii DLNR records.
-        </p>
+        </motion.p>
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
 function FailedResponsesSection() {
   return (
-    <section className="py-24 px-6">
+    <RevealSection variants={staggerContainer} className="py-28 px-6">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-10">
-          <h3 className="text-3xl font-bold text-white">Why Conventional Responses Fall Short</h3>
-          <p className="text-slate-500 mt-2">Decades of management efforts have yielded local victories — but the systemic threat keeps escalating.</p>
+        <div className="mb-12">
+          <motion.h3 variants={fadeUp} className="text-4xl font-display text-white tracking-tight">Why Conventional Responses Fall Short</motion.h3>
+          <motion.p variants={fadeUp} className="text-slate-500 font-body mt-3">Decades of management efforts have yielded local victories — but the systemic threat keeps escalating.</motion.p>
         </div>
 
-        <Accordion type="multiple">
-          {FAILED_RESPONSES.map((item, i) => (
-            <AccordionItem key={i} value={`item-${i}`} className="border-slate-800/40">
-              <AccordionTrigger className="text-white text-left hover:no-underline text-sm md:text-base py-4">
-                {item.title}
-              </AccordionTrigger>
-              <AccordionContent className="text-slate-400 text-sm leading-relaxed pb-4">
-                {item.body}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        <motion.div variants={fadeUp}>
+          <Accordion type="multiple">
+            {FAILED_RESPONSES.map((item, i) => (
+              <AccordionItem key={i} value={`item-${i}`} className="border-slate-800/30">
+                <AccordionTrigger className="text-white text-left hover:no-underline text-sm md:text-base py-5 font-body hover:text-cyan-300 transition-colors">
+                  {item.title}
+                </AccordionTrigger>
+                <AccordionContent className="text-slate-400 text-sm font-body leading-[1.8] pb-5">
+                  {item.body}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </motion.div>
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
 const FUNNEL_STAGES = [
-  { label: 'Species Arrives', time: 'Day 0', cost: '$0', dotClass: 'bg-cyan-400', textClass: 'text-cyan-400' },
-  { label: 'Detected', time: '~1 Year', cost: '$4K', dotClass: 'bg-blue-400', textClass: 'text-blue-400' },
-  { label: 'Response Mounted', time: '~3 Years', cost: '$1.2M', dotClass: 'bg-orange-400', textClass: 'text-orange-400' },
-  { label: 'Irreversible', time: '10+ Years', cost: '', dotClass: 'bg-red-400', textClass: 'text-red-400' },
+  { label: 'Species Arrives', time: 'Day 0', cost: '$0', dotClass: 'bg-cyan-400', textClass: 'text-cyan-400', glowClass: 'shadow-[0_0_10px_rgba(34,211,238,0.4)]' },
+  { label: 'Detected', time: '~1 Year', cost: '$4K', dotClass: 'bg-blue-400', textClass: 'text-blue-400', glowClass: 'shadow-[0_0_10px_rgba(96,165,250,0.4)]' },
+  { label: 'Response Mounted', time: '~3 Years', cost: '$1.2M', dotClass: 'bg-orange-400', textClass: 'text-orange-400', glowClass: 'shadow-[0_0_10px_rgba(251,146,60,0.4)]' },
+  { label: 'Irreversible', time: '10+ Years', cost: '', dotClass: 'bg-red-400', textClass: 'text-red-400', glowClass: 'shadow-[0_0_10px_rgba(248,113,113,0.4)]' },
 ];
 
 function DataGapSection() {
   return (
-    <section className="py-24 px-6 bg-slate-900/30">
-      <div className="max-w-4xl mx-auto">
-        <h3 className="text-3xl font-bold text-white mb-2">The Surveillance Gap</h3>
-        <p className="text-slate-500 mb-10">Why reactive monitoring fails — and why prediction matters.</p>
+    <RevealSection variants={staggerContainer} className="py-28 px-6 bg-slate-900/20 relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.015] to-transparent" />
+      <div className="max-w-4xl mx-auto relative z-10">
+        <motion.h3 variants={fadeUp} className="text-4xl font-display text-white mb-3 tracking-tight">The Surveillance Gap</motion.h3>
+        <motion.p variants={fadeUp} className="text-slate-500 font-body mb-12">Why reactive monitoring fails — and why prediction matters.</motion.p>
 
-        <div className="grid md:grid-cols-2 gap-16">
-          {/* Timeline */}
-          <div className="relative pl-6">
-            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-800" />
-            <div className="space-y-8">
+        <div className="grid md:grid-cols-2 gap-20">
+          <motion.div variants={staggerContainer} className="relative pl-7">
+            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-cyan-500/40 via-orange-500/40 to-red-500/40" />
+            <div className="space-y-10">
               {FUNNEL_STAGES.map((stage) => (
-                <div key={stage.label} className="relative">
-                  <div className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full ${stage.dotClass}/30 flex items-center justify-center`}>
-                    <div className={`w-2 h-2 rounded-full ${stage.dotClass}`} />
+                <motion.div key={stage.label} variants={fadeUp} className="relative group">
+                  <div className={`absolute -left-7 top-0.5 w-4 h-4 rounded-full ${stage.dotClass}/20 flex items-center justify-center`}>
+                    <div className={`w-2.5 h-2.5 rounded-full ${stage.dotClass} ${stage.glowClass} transition-shadow`} />
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <p className="text-sm text-slate-200 font-medium">{stage.label}</p>
-                    {stage.cost && <span className={`text-sm font-bold ${stage.textClass} tabular-nums`}>{stage.cost}</span>}
+                    <p className="text-sm font-body text-slate-200 font-medium">{stage.label}</p>
+                    {stage.cost && <span className={`text-sm font-display font-bold ${stage.textClass} tabular-nums`}>{stage.cost}</span>}
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">{stage.time}</p>
-                </div>
+                  <p className="text-xs font-body text-slate-500 mt-0.5">{stage.time}</p>
+                </motion.div>
               ))}
             </div>
-          </div>
+          </motion.div>
 
-          {/* Text */}
-          <div className="space-y-4 text-slate-400 leading-relaxed text-sm">
-            <p>
-              The fundamental problem is that we see the damage long after the invasion becomes irreversible. By the time Rapid Ohia Death was identified in 2014, it had already killed over a million trees. By the time coqui frogs were recognized as a threat, they had established on four islands.
-            </p>
-            <p>
-              Effective management requires knowing where species are before they reach critical mass. This demands continuous, systematic monitoring at scales no single agency can currently provide.
-            </p>
-            <p>
-              The window for effective intervention is narrow. Research suggests a new invasive population can be eradicated for roughly $4,000 if caught within its first year. That cost rises to $1.2 million after three years.<Cite href="https://www.kauaiisc.org/the-cost-of-invasive-species/" n={16} /> After ten years, eradication is typically impossible.
-            </p>
-          </div>
+          <motion.div variants={staggerContainer} className="space-y-5">
+            {[
+              <>The fundamental problem is that we see the damage long after the invasion becomes irreversible. By the time Rapid Ohia Death was identified in 2014, it had already killed over a million trees. By the time coqui frogs were recognized as a threat, they had established on four islands.</>,
+              <>Effective management requires knowing where species are before they reach critical mass. This demands continuous, systematic monitoring at scales no single agency can currently provide.</>,
+              <>The window for effective intervention is narrow. Research suggests a new invasive population can be eradicated for roughly $4,000 if caught within its first year. That cost rises to $1.2 million after three years.<Cite href="https://www.kauaiisc.org/the-cost-of-invasive-species/" n={16} /> After ten years, eradication is typically impossible.</>,
+            ].map((text, i) => (
+              <motion.p key={i} variants={fadeUp} className="text-[15px] font-body text-slate-400/90 leading-[1.8]">
+                {text}
+              </motion.p>
+            ))}
+          </motion.div>
         </div>
       </div>
-    </section>
+    </RevealSection>
   );
 }
 
 function PageFooter() {
   return (
-    <footer className="py-12 px-6">
-      <Separator className="bg-slate-800 mb-10" />
-      <div className="max-w-4xl mx-auto text-center space-y-6">
-        <Link to="/" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm">
-          <ArrowLeft className="w-4 h-4" />
+    <RevealSection as="footer" variants={fadeIn} className="py-16 px-6">
+      <Separator className="bg-gradient-to-r from-transparent via-slate-700/50 to-transparent mb-12" />
+      <div className="max-w-4xl mx-auto text-center space-y-8">
+        <Link to="/dashboard" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-body group">
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           Return to Dashboard
         </Link>
-        <p className="text-slate-600 text-xs leading-relaxed">
+        <p className="text-slate-600 text-xs font-body leading-relaxed">
           Data sources:{' '}
-          <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2">IUCN Red List</a>,{' '}
-          <a href="https://www.usgs.gov/centers/pierc" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2">USGS PIERC</a>,{' '}
-          <a href="https://dlnr.hawaii.gov/hisc/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2">Hawaii DLNR</a>,{' '}
-          <a href="https://www.bishopmuseum.org/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2">Bishop Museum</a>,{' '}
-          <a href="https://www.nature.org/en-us/about-us/where-we-work/united-states/hawaii/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2">Nature Conservancy of Hawaii</a>.
+          <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2 transition-colors">IUCN Red List</a>,{' '}
+          <a href="https://www.usgs.gov/centers/pierc" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2 transition-colors">USGS PIERC</a>,{' '}
+          <a href="https://dlnr.hawaii.gov/hisc/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2 transition-colors">Hawaii DLNR</a>,{' '}
+          <a href="https://www.bishopmuseum.org/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2 transition-colors">Bishop Museum</a>,{' '}
+          <a href="https://www.nature.org/en-us/about-us/where-we-work/united-states/hawaii/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-300 underline underline-offset-2 transition-colors">Nature Conservancy of Hawaii</a>.
         </p>
-        <div className="flex items-center justify-center gap-2 text-slate-600">
-          <div className="p-1.5 bg-gradient-to-br from-blue-500/50 to-cyan-500/50 rounded-lg">
-            <Globe2 className="w-4 h-4 text-white/70" />
+        <div className="flex items-center justify-center gap-2.5 text-slate-600">
+          <div className="p-1.5 bg-gradient-to-br from-blue-500/40 to-cyan-500/40 rounded-lg">
+            <Globe2 className="w-4 h-4 text-white/60" />
           </div>
-          <span className="text-sm">InvasiveWatch</span>
+          <span className="text-sm font-display tracking-wide">InvasiveWatch</span>
         </div>
       </div>
-    </footer>
+    </RevealSection>
   );
 }
 
@@ -638,7 +641,7 @@ function PageFooter() {
 
 export default function HawaiiCaseStudy() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#0a1628] to-slate-950 text-white font-body selection:bg-cyan-500/20">
       <ScrollProgressBar />
       <Header />
       <main className="pt-20">

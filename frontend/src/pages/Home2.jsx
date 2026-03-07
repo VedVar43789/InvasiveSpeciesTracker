@@ -431,7 +431,7 @@ export default function Home2() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white font-body overflow-hidden">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -441,18 +441,20 @@ export default function Home2() {
                 <Globe2 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                <h1 className="text-xl font-display font-semibold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                   InvasiveWatch
                 </h1>
-                <p className="text-xs text-slate-500">Global Species Tracker</p>
+                <p className="text-[11px] text-slate-500 tracking-wide">Global Species Tracker</p>
               </div>
             </div>
 
             <nav className="hidden md:flex items-center gap-8">
-              <a href="#" className="text-white text-sm font-medium">Dashboard</a>
-              <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Species</a>
-              <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Reports</a>
-              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Why track? · Hawaii</Link>
+              <Link to="/" className="text-slate-400 text-sm hover:text-white transition-colors">Home</Link>
+              <span className="text-white text-sm font-medium relative">
+                Dashboard
+                <span className="absolute -bottom-1 left-0 right-0 h-px bg-gradient-to-r from-cyan-500 to-blue-500" />
+              </span>
+              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
             </nav>
 
             <div className="flex items-center gap-3">
@@ -585,7 +587,7 @@ export default function Home2() {
               {/* Modal header */}
               <div className="flex items-center justify-between p-6 border-b border-slate-800">
                 <div>
-                  <h2 className="text-xl font-bold text-white">
+                  <h2 className="text-xl font-display font-semibold tracking-tight text-white">
                     {(selectedLocation?.name || 'Location')} Risk Analysis
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
