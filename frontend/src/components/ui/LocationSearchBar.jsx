@@ -180,7 +180,13 @@ export function LocationSearchBar({ onLocationFound, isLoading = false }) {
 
         <Button
           onClick={handleSearch}
-          disabled={isSearching || isLocating || isLoading || !locationInput.trim()}
+          disabled={
+            isSearching ||
+            isLocating ||
+            isLoading ||
+            !locationInput.trim() ||
+            !speciesInput.trim()
+          }
           className="flex-1 bg-blue-600 hover:bg-blue-700 text-white border-0"
         >
           {isSearching ? (
