@@ -1,6 +1,6 @@
 # Invasive Species Tracker
 
-A **FastAPI + React (Vite)** application: **Landing** at `/`, **Dashboard** at `/dashboard` (interactive map, location-based risk scan, species catalog and detail with iNaturalist/Wikipedia/Trefle), and **Research** at `/hawaii` with case studies (Hawaii: time-slider invasive spread heatmap; New Zealand: mammal crisis narrative and charts).
+A **FastAPI + React (Vite)** application: **Landing** at `/`, **Dashboard** at `/dashboard` (interactive map, location-based risk scan, species catalog and detail with iNaturalist/Wikipedia/Trefle), and **Research** at `/hawaii` with case studies (Hawaii plant extinctions and New Zealand mammal crisis).
 
 ---
 
