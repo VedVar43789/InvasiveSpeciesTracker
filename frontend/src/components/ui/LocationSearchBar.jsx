@@ -10,8 +10,32 @@ export function LocationSearchBar({ onLocationFound, isLoading = false }) {
   const [isLocating, setIsLocating] = useState(false);
   const [error, setError] = useState(null);
 
+  // Helper to validate species input - returns error message if invalid
+  const validateSpeciesInput = () => {
+    const trimmed = speciesInput.trim();
+    // Species name is now required - cannot be blank or whitespace
+    if (trimmed.length === 0) {
+      return 'Please enter a species name';
+    }
+    return null;
+  };
+
+  // Helper to safely get species value - returns null if empty, trimmed value if valid
+  const getValidSpeciesInput = () => {
+    const trimmed = speciesInput.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
   const handleLocateMe = async () => {
     setError(null);
+
+    // Validate species input
+    const speciesError = validateSpeciesInput();
+    if (speciesError) {
+      setError(speciesError);
+      return;
+    }
+
     setIsLocating(true);
 
     if (!navigator.geolocation) {
@@ -25,7 +49,7 @@ export function LocationSearchBar({ onLocationFound, isLoading = false }) {
         const { latitude, longitude } = position.coords;
         console.log('Geolocation result:', { latitude, longitude });
         setIsLocating(false);
-        onLocationFound(latitude, longitude, speciesInput.trim() || null);
+        onLocationFound(latitude, longitude, getValidSpeciesInput());
       },
       (err) => {
         setIsLocating(false);
@@ -44,6 +68,13 @@ export function LocationSearchBar({ onLocationFound, isLoading = false }) {
     const query = locationInput.trim();
     if (!query) {
       setError('Please enter a zip code or city name');
+      return;
+    }
+
+    // Validate species input
+    const speciesError = validateSpeciesInput();
+    if (speciesError) {
+      setError(speciesError);
       return;
     }
 
@@ -79,7 +110,7 @@ export function LocationSearchBar({ onLocationFound, isLoading = false }) {
         const placeName = data.features[0].place_name;
         console.log('Using coordinates:', { lat, lng, placeName });
         setIsSearching(false);
-        onLocationFound(lat, lng, speciesInput.trim() || null, placeName);
+        onLocationFound(lat, lng, getValidSpeciesInput(), placeName);
       } else {
         setIsSearching(false);
         setError('Location not found. Please try a different search.');
@@ -118,7 +149,7 @@ export function LocationSearchBar({ onLocationFound, isLoading = false }) {
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-500" />
         <input
           type="text"
-          placeholder="Species name (optional)..."
+          placeholder="Species name..."
           value={speciesInput}
           onChange={(e) => setSpeciesInput(e.target.value)}
           onKeyPress={handleKeyPress}
