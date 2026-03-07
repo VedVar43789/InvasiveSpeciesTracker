@@ -36,11 +36,11 @@ CORE_COLS = [
     'native_region_count'
 ]
 
-# Fixed cap: Calculate risk on ALL species, return top 20k to frontend
-RESULT_CAP = 20000
+# Calculate risk on ALL species; downstream layers are responsible for any result limiting
 
 # ==========================================
 # TAXONOMIC ENGINE & SYNONYM ROUTER PREP
+print("Initializing Taxonomic Engine...")
 # ==========================================
 print("Initializing Taxonomic Engine...")
 # Build Genus Threat Map dynamically
