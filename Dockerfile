@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
   && curl -L -o /app/notebooks/plants_climate_4d.faiss \
     "https://kvffocupazyduunrsayh.supabase.co/storage/v1/object/public/invasivespecies/plants_climate_4d.faiss"
 
+RUN curl -L -o /app/notebooks/plants_metadata.csv \
+    "https://kvffocupazyduunrsayh.supabase.co/storage/v1/object/public/invasivespecies/plants_metadata.csv"
 
 WORKDIR /app/backend
 
