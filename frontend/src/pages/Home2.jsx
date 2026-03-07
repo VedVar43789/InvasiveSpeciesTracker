@@ -506,7 +506,7 @@ export default function Home2() {
         markerRef.current.getElement().style.display = 'block';
         markerRef.current.setLngLat([lng, lat]);
       }
-      handlePickLocationRef.current({ lat, lng, name: 'Selected location' }, { flyTo: false });
+      handlePickLocationRef.current({ lat, lng, name: 'Selected location' }, { flyTo: true });
     });
 
     return () => {
