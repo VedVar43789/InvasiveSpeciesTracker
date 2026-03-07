@@ -206,7 +206,6 @@ export default function Home2() {
   }, [loadHeatmap]);
 
   const handlePickLocation = useCallback(async (location, { flyTo = true, speciesName = null } = {}) => {
-    console.log('handlePickLocation called with:', { location, flyTo, speciesName });
     if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
     if (isScanningRef.current) return;
 
@@ -291,9 +290,36 @@ export default function Home2() {
       }
     });
 
-    map.on('click', (e) => {
+    map.on('click', async (e) => {
       if (isScanningRef.current) return;
+
       const { lng, lat } = e.lngLat;
+
+      // Check if user clicked on water using Mapbox Tilequery API
+      const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+      try {
+        const tileQueryResponse = await fetch(
+          `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?access_token=${mapboxToken}`
+        );
+        const tileQueryData = await tileQueryResponse.json();
+        
+        // Check if water features are at this location
+        const isWaterClick = tileQueryData.features && tileQueryData.features.some(feature => {
+          const layerName = feature.properties?.tilequery?.layer || '';
+          return layerName.toLowerCase() === 'water';
+        });
+
+        if (isWaterClick) {
+          setScanError('🌊 You clicked on water! Please select a landmass.');
+          return;
+        }
+      } catch (err) {
+        // Continue anyway if tilequery fails
+      }
+
+      // Clear any previous error
+      setScanError(null);
+
       // Show the selected marker
       if (markerRef.current) {
         markerRef.current.getElement().style.display = 'block';
@@ -600,16 +626,30 @@ export default function Home2() {
 
           {scanError && (
             <div className="absolute top-6 left-6 z-10 bg-red-900/80 backdrop-blur-xl rounded-2xl p-4 border border-red-700/50 max-w-sm">
-              <p className="text-sm text-red-300">Scan failed: {scanError}</p>
-              <p className="text-xs text-red-400/80 mt-1">Ensure the backend is running and VITE_API_BASE_URL points to it.</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 border-red-600 text-red-200 hover:bg-red-800/50"
-                onClick={() => { setScanError(null); runScan(selectedLocation); }}
-              >
-                Try again
-              </Button>
+              <p className="text-sm text-red-300">{scanError}</p>
+              {!scanError.includes('water') && (
+                <>
+                  <p className="text-xs text-red-400/80 mt-1">Ensure the backend is running and VITE_API_BASE_URL points to it.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 border-red-600 text-red-200 hover:bg-red-800/50"
+                    onClick={() => { setScanError(null); runScan(selectedLocation); }}
+                  >
+                    Try again
+                  </Button>
+                </>
+              )}
+              {scanError.includes('water') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 border-red-600 text-red-200 hover:bg-red-800/50"
+                  onClick={() => setScanError(null)}
+                >
+                  Dismiss
+                </Button>
+              )}
             </div>
           )}
 
