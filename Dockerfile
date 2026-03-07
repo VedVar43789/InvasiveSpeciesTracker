@@ -8,6 +8,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY notebooks/ ./notebooks/
 
+# Replace LFS pointer with real FAISS index from Supabase
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/* \
+  && curl -L -o /app/notebooks/plants_climate_4d.faiss \
+    "https://kvffocupazyduunrsayh.supabase.co/storage/v1/object/public/invasivespecies/plants_climate_4d.faiss"
+
+
 WORKDIR /app/backend
 
 EXPOSE 8000
