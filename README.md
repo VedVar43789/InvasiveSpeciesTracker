@@ -19,7 +19,7 @@ A **FARM stack** (FastAPI, React, MongoDB) application that assesses invasive sp
 
 ## Architecture
 
-The app is built on the **FARM stack** (FastAPI, React, MongoDB): a FastAPI backend and a React (Vite) frontend. When you run a risk scan from the map, the frontend sends the chosen coordinates to the backend, which fetches climate data (rainfall, temperature) from Open-Meteo and derives a biome and soil pH for that location. That “dynamic profile” is compared against a plant dataset using cosine-similarity risk scoring, while GBIF is queried to see which species are already recorded in the area. The API returns a ranked list of potential invaders—species that score high for the location but are *not* yet present in the GBIF radius—so the UI can highlight what might newly establish there. The ML dataset and feature means live in the repo under `notebooks/`; an optional species-by-location CSV can sit in `backend/app/db/`. MongoDB is available via Docker Compose but is not used in the current flow; data is served from CSV and in-memory DataFrames.
+The app is built on the **FARM stack** (FastAPI, React, MongoDB): a FastAPI backend and a React (Vite) frontend. When you run a risk scan from the map, the frontend sends the chosen coordinates to the backend, which fetches climate data (rainfall, temperature) from Open-Meteo and derives a biome and soil pH for that location. That “dynamic profile” is compared against a plant dataset using risk scoring, while GBIF is queried to see which species are already recorded in the area. The API returns a ranked list of potential invaders—species that score high for the location but are *not* yet present in the GBIF radius—so the UI can highlight what might newly establish there. The ML dataset and feature means live in the repo under `notebooks/`; an optional species-by-location CSV can sit in `backend/app/db/`. MongoDB is available via Docker Compose but is not used in the current flow; data is served from CSV and in-memory DataFrames.
 
 ```mermaid
 flowchart LR
@@ -46,7 +46,7 @@ InvasiveSpeciesTracker/
 │   │   ├── api/v1/          # Routes: health, species, risk
 │   │   ├── core/             # Config, utils (GBIF, rainfall, biome, soil pH)
 │   │   ├── db/               # CSV and ML data loaders (in-memory)
-│   │   ├── ml/               # Risk engine (cosine similarity + multipliers)
+│   │   ├── ml/               # Risk engine
 │   │   ├── schemas/          # Pydantic request/response models
 │   │   └── services/         # risk_scan: orchestrate GBIF + profile + risk_engine
 │   ├── tests/
@@ -57,9 +57,11 @@ InvasiveSpeciesTracker/
 │       ├── pages/             # Home2 (map, risk, species), HawaiiCaseStudy
 │       └── components/ui/     # Shared UI components
 ├── notebooks/                # Risk inference and PCA analysis
-│   ├── RiskScore.ipynb       # Cosine-similarity risk model
+│   ├── RiskScore.ipynb       # Risk model
 │   ├── PCA.ipynb             # Feature analysis
 │   ├── feature_means.json    # Used by risk engine to center dynamic profile
+│   ├── plants_climate_4d.faiss # 4D FAISS vector index (Tracked via Git LFS)
+│   ├── plants_metadata.csv   # Taxonomic metadata and traits (Tracked via Git LFS)
 │   └── add_inat_taxon_ids.py # Script to attach iNaturalist taxon IDs
 ├── infra/
 │   └── docker-compose.yml    # MongoDB
@@ -71,16 +73,17 @@ InvasiveSpeciesTracker/
 
 ## Key Algorithms and Design
 
-- **Risk score**  
-The backend uses **cosine similarity** between a location’s **dynamic profile** (4 features) and each row in the ML dataset. The four features are: `growth_ph_minimum`, `growth_ph_maximum`, `growth_minimum_precipitation_mm`, `native_region_count`. The dynamic profile is centered using global means from `notebooks/feature_means.json`. See [backend/app/ml/risk_engine.py](backend/app/ml/risk_engine.py) and [notebooks/RiskScore.ipynb](notebooks/RiskScore.ipynb).
-- **Multipliers**  
-After similarity, heuristic multipliers are applied: species marked **invasive** ×1.2, **rapid growth** ×1.1, **ph_source unknown** ×0.9; then scores are clipped to [0, 1].
-- **Dynamic profile**  
-For a given `(lat, lng)`, the backend fetches rainfall and temperature from **Open-Meteo**, derives a **biome** (or uses optional `biome_context`), and estimates **soil pH**. Optional flags like `is_urban` and biome-specific habit hints are folded in. This profile is passed to the risk engine.
-- **GBIF**  
-Species occurrences in the chosen radius are fetched from the **GBIF API**. Each result species is marked `found_in_gbif_radius: true`. The main “results” list returned to the client **excludes** species already found in the GBIF radius so the UI emphasizes potential new invaders.
-- **Risk labels**  
-Scores are bucketed: **High risk** ≥ 0.65, **Moderate risk** ≥ 0.45, otherwise **Low risk**.
+- **Hybrid Risk Engine (FAISS Vector Search)**  
+The backend utilizes a 4D **Facebook AI Similarity Search (FAISS)** index (`plants_climate_4d.faiss`) to instantly evaluate climate suitability across 96,270 species. The engine normalizes four core features (`growth_ph_minimum`, `growth_ph_maximum`, `growth_minimum_precipitation_mm`, `native_region_count`), centers the dynamic profile using global means, and queries the vector space to catch perfect climate matches as well as highly adaptable "generalist" sleepers. See [backend/app/ml/risk_engine.py](backend/app/ml/risk_engine.py).
+
+- **Biological Aggression (Taxonomic Math)**  
+Climate scores (Axis Y) are combined with Biological Aggression scores (Axis X). Aggression is calculated dynamically on the fly using `plants_metadata.csv`. This applies a **Genus Kicker** (mathematically penalizing plants related to known invaders), individual invasive flags, and rapid growth traits to elevate biologically lethal plants even if their climate match isn't 100% perfect.
+
+- **Dynamic Profile & GBIF Orchestration**  
+For a given `(lat, lng)`, the backend fetches rainfall and temperature from **Open-Meteo**, derives a **biome**, and estimates **soil pH**. Simultaneously, the **GBIF API** is queried for species already occurring in that radius. The final payload flags or filters species already present, allowing the UI to prioritize *potential new* invaders.
+
+- **Subspecies Deduplicator & Smart Payload**  
+To maintain high performance and UI clarity while processing 96k species, the engine strips out redundant subspecies clones. Instead of sending massive, browser-crashing arrays, the backend returns a scalable **Dashboard Object** containing total risk counts, frequency distribution, and a targeted top-threat list.
 
 ---
 
@@ -229,7 +232,7 @@ Copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL` (e.g
 | [backend/app/main.py](backend/app/main.py) | FastAPI app; lifespan loads CSV and ML data into in-memory stores |
 | [backend/app/api/v1/](backend/app/api/v1/) | Routes: health, species (catalog/scan/trefle-traits), risk (scan) |
 | [backend/app/services/risk_scan.py](backend/app/services/risk_scan.py) | Orchestrates GBIF fetch, dynamic profile, risk engine, labels and GBIF filter |
-| [backend/app/ml/risk_engine.py](backend/app/ml/risk_engine.py) | Cosine similarity and multipliers |
+| [backend/app/ml/risk_engine.py](backend/app/ml/risk_engine.py) | FAISS 4D geometric search, taxonomic multipliers (Axis X/Y math), and geospatial overrides |
 | [backend/app/core/config.py](backend/app/core/config.py), [backend/app/core/utils.py](backend/app/core/utils.py) | Config and helpers (GBIF, rainfall, biome, soil pH) |
 | [backend/app/db/csv_store.py](backend/app/db/csv_store.py), [backend/app/db/ml_store.py](backend/app/db/ml_store.py) | CSV and ML loaders |
 | [backend/app/schemas/](backend/app/schemas/) | Pydantic request/response models |
@@ -247,8 +250,11 @@ Copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL` (e.g
 
 | Path | Description |
 |------|-------------|
-| [notebooks/RiskScore.ipynb](notebooks/RiskScore.ipynb) | Risk inference (cosine similarity, aggregation) |
+| [notebooks/RiskScore.ipynb](notebooks/RiskScore.ipynb) | Risk model generation, data normalization, and index building |
 | [notebooks/PCA.ipynb](notebooks/PCA.ipynb) | PCA and feature analysis |
+| [notebooks/plants_climate_4d.faiss](notebooks/plants_climate_4d.faiss) | 4D geometric climate map |
+| [notebooks/plants_metadata.csv](notebooks/plants_metadata.csv) | Taxonomic traits, invasive flags, and synonym routing |
+| [notebooks/feature_means.json](notebooks/feature_means.json) | Used by risk engine to center the dynamic profile |
 | [notebooks/add_inat_taxon_ids.py](notebooks/add_inat_taxon_ids.py) | Script to attach iNaturalist taxon IDs to the species dataset |
 
 ### Infra
