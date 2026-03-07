@@ -297,24 +297,39 @@ export default function Home2() {
 
       // Check if user clicked on water using Mapbox Tilequery API
       const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-      try {
-        const tileQueryResponse = await fetch(
-          `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?access_token=${mapboxToken}`
-        );
-        const tileQueryData = await tileQueryResponse.json();
-        
-        // Check if water features are at this location
-        const isWaterClick = tileQueryData.features && tileQueryData.features.some(feature => {
-          const layerName = feature.properties?.tilequery?.layer || '';
-          return layerName.toLowerCase() === 'water';
-        });
+      if (!mapboxToken) {
+        // Skip Tilequery when token is not configured; continue as if on land
+        console.warn('Mapbox Tilequery skipped: VITE_MAPBOX_TOKEN is not set.');
+      } else {
+        try {
+          const tileQueryResponse = await fetch(
+            `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?access_token=${mapboxToken}`
+          );
 
-        if (isWaterClick) {
-          setScanError('🌊 You clicked on water! Please select a landmass.');
-          return;
+          if (!tileQueryResponse.ok) {
+            console.error(
+              `Mapbox Tilequery request failed with status ${tileQueryResponse.status} ${tileQueryResponse.statusText}.`
+            );
+          } else {
+            const tileQueryData = await tileQueryResponse.json();
+
+            // Check if water features are at this location
+            const isWaterClick =
+              Array.isArray(tileQueryData.features) &&
+              tileQueryData.features.some((feature) => {
+                const layerName = feature.properties?.tilequery?.layer || '';
+                return layerName.toLowerCase() === 'water';
+              });
+
+            if (isWaterClick) {
+              setScanError('🌊 You clicked on water! Please select a landmass.');
+              return;
+            }
+          }
+        } catch (err) {
+          // Continue anyway if tilequery fails, but log for easier debugging
+          console.error('Mapbox Tilequery request encountered an error:', err);
         }
-      } catch (err) {
-        // Continue anyway if tilequery fails
       }
 
       // Clear any previous error
