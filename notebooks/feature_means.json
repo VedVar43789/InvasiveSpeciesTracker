@@ -1,1 +1,6 @@
-{"growth_ph_minimum":0.4991813129,"growth_ph_maximum":0.5832740808,"growth_minimum_precipitation_mm":0.4950619431,"native_region_count":0.0}
+{
+    "growth_ph_minimum": 0.5037152944116973,
+    "growth_ph_maximum": 0.5824828337950331,
+    "growth_minimum_precipitation_mm": 0.4942958252733017,
+    "native_region_count": 0.0
+}

@@ -5,6 +5,7 @@ Species endpoint for the Invasive Species Tracker
 from fastapi import APIRouter, Depends, HTTPException, Query
 import pandas as pd
 import requests
+import math
 
 from app.db.ml_store import get_ml_df
 from app.services.risk_scan import run_risk_scan
@@ -21,6 +22,17 @@ def _normalize_scientific_name(name: str) -> str:
 def _is_true(val) -> bool:
     """Helper to safely check if a value is True or 1"""
     return val in [1, 1.0, True, "True", "1"]
+
+
+def _clean_nan_values(data: dict) -> dict:
+    """Convert NaN and inf values to None for JSON serialization."""
+    cleaned = {}
+    for key, value in data.items():
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            cleaned[key] = None
+        else:
+            cleaned[key] = value
+    return cleaned
 
 
 def decode_plant_traits(raw_row: dict) -> dict:
@@ -61,11 +73,21 @@ async def get_species(
     ml_df: pd.DataFrame = Depends(get_ml_df),
 ):
     """Get a species by scientific name (catalog lookup from ML dataset)."""
+    # First try exact match
     row = ml_df[ml_df["scientific_name"] == scientific_name]
+    
+    # If not found, try normalized match (handles subspecies/varieties)
+    if row.empty:
+        normalized_input = _normalize_scientific_name(scientific_name)
+        # Create temporary series for comparison without modifying original DataFrame
+        normalized_names = ml_df["scientific_name"].apply(_normalize_scientific_name)
+        row = ml_df[normalized_names == normalized_input]
+    
     if row.empty:
         raise HTTPException(status_code=404, detail="Species not found")
     raw_dict = row.iloc[0].to_dict()
-    return decode_plant_traits(raw_dict)
+    decoded = decode_plant_traits(raw_dict)
+    return _clean_nan_values(decoded)
 
 
 @router.get("/scan/lookup")
