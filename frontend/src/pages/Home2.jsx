@@ -14,6 +14,8 @@ import { scanRisk, getSpeciesByLocation, getINatTaxonProfile, getWikipediaSummar
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const SAN_DIEGO = { lat: 32.7157, lng: -117.1611, name: "San Diego" };
+const SEARCH_ITEM_HEIGHT = 92;
+const SEARCH_OVERSCAN = 8;
 
 function formatCoords({ lat, lng }) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return '';
@@ -59,8 +61,11 @@ function buildINatHeatmapUrl(lat, lng, radiusKm = 100, taxonIds = []) {
     verifiable: 'true',
   });
 
+  // Limit to top 50 taxon IDs to avoid 414 Request-URI Too Large error
+  // iNaturalist API has URL length limits (~2000 chars)
   if (Array.isArray(taxonIds) && taxonIds.length > 0) {
-    params.set('taxon_id', taxonIds.join(','));
+    const limitedIds = taxonIds.slice(0, 50);
+    params.set('taxon_id', limitedIds.join(','));
   }
 
   return `https://api.inaturalist.org/v1/heatmap/{z}/{x}/{y}.png?${params}`;
@@ -78,6 +83,7 @@ export default function Home2() {
   const markerRef = useRef(null);
   const sdMarkerRef = useRef(null);
   const hasAutoScanned = useRef(false);
+  const searchResultsRef = useRef(null);
   const speciesStaticCacheRef = useRef(new Map());
   const speciesEnrichmentCacheRef = useRef(new Map());
   const speciesTrefleCacheRef = useRef(new Map());
@@ -88,11 +94,16 @@ export default function Home2() {
   const [scanError, setScanError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState(null);
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchPending, setIsSearchPending] = useState(false);
+  const [searchScrollTop, setSearchScrollTop] = useState(0);
+  const [searchViewportHeight, setSearchViewportHeight] = useState(480);
   const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
   const [loadingSpeciesDetail, setLoadingSpeciesDetail] = useState(false);
   const [loadingEnrichment, setLoadingEnrichment] = useState(false);
   const [loadingTrefle, setLoadingTrefle] = useState(false);
+  const [visibleCounts, setVisibleCounts] = useState({ high: 100, moderate: 100, low: 100 });
 
   const highRiskCount = riskData?.results?.filter(r => r.risk_label === 'High Risk').length ?? 0;
   const modRiskCount = riskData?.results?.filter(r => r.risk_label === 'Moderate Risk').length ?? 0;
@@ -138,6 +149,7 @@ export default function Home2() {
         radius_km: 50,
       });
       setRiskData(data);
+      setVisibleCounts({ high: 100, moderate: 100, low: 100 });
       const taxonIds = data?.meta?.inat_taxon_ids_for_heatmap || [];
       loadHeatmap(location, taxonIds);
     } catch (err) {
@@ -277,6 +289,54 @@ export default function Home2() {
       s.scientific_name?.toLowerCase().includes(query)
     );
   }, [allSpecies, searchQuery]);
+
+  const searchStartIndex = useMemo(() => {
+    return Math.max(0, Math.floor(searchScrollTop / SEARCH_ITEM_HEIGHT) - SEARCH_OVERSCAN);
+  }, [searchScrollTop]);
+
+  const searchEndIndex = useMemo(() => {
+    const visibleCount = Math.ceil(searchViewportHeight / SEARCH_ITEM_HEIGHT) + SEARCH_OVERSCAN * 2;
+    return Math.min(filteredSpecies.length, searchStartIndex + visibleCount);
+  }, [filteredSpecies.length, searchStartIndex, searchViewportHeight]);
+
+  const displayedFilteredSpecies = useMemo(() => {
+    return filteredSpecies.slice(searchStartIndex, searchEndIndex);
+  }, [filteredSpecies, searchStartIndex, searchEndIndex]);
+
+  const searchTopSpacerHeight = searchStartIndex * SEARCH_ITEM_HEIGHT;
+  const searchBottomSpacerHeight = Math.max(0, (filteredSpecies.length - searchEndIndex) * SEARCH_ITEM_HEIGHT);
+
+  // Debounce search to keep typing responsive with large result sets
+  useEffect(() => {
+    if (searchInput === searchQuery) return;
+
+    setIsSearchPending(true);
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setIsSearchPending(false);
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, searchQuery]);
+
+  // Measure search results viewport for virtualization
+  useEffect(() => {
+    if (!showModal || selectedSpeciesDetail || !searchQuery.trim()) {
+      setSearchScrollTop(0);
+      return;
+    }
+
+    const measure = () => {
+      if (searchResultsRef.current) {
+        const nextHeight = searchResultsRef.current.clientHeight;
+        if (nextHeight > 0) setSearchViewportHeight(nextHeight);
+      }
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [showModal, selectedSpeciesDetail, searchQuery]);
 
   // Fetch detailed species info from catalog
   const handleSpeciesClick = useCallback(async (species) => {
@@ -532,7 +592,7 @@ export default function Home2() {
                     {riskData.meta?.rainfall_used ? `${Math.round(riskData.meta.rainfall_used)} mm rainfall` : ''} · pH {riskData.meta?.soil_ph_used?.toFixed(1)} · {riskData.meta?.biome || "Auto-detected"} biome
                   </p>
                 </div>
-                <button onClick={() => { setShowModal(false); setExpandedCategory(null); setSearchQuery(''); setSelectedSpeciesDetail(null); }} className="text-slate-400 hover:text-white transition-colors p-1">
+                <button onClick={() => { setShowModal(false); setExpandedCategory(null); setSearchInput(''); setSearchQuery(''); setIsSearchPending(false); setSearchScrollTop(0); setSelectedSpeciesDetail(null); }} className="text-slate-400 hover:text-white transition-colors p-1">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -545,11 +605,19 @@ export default function Home2() {
                     <input
                       type="text"
                       placeholder="Search species by common or scientific name..."
-                      value={searchQuery}
-                      onChange={(e) => { setSearchQuery(e.target.value); setExpandedCategory(null); }}
+                      value={searchInput}
+                      onChange={(e) => { setSearchInput(e.target.value); setExpandedCategory(null); }}
                       className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                     />
                   </div>
+                  {isSearchPending && (
+                    <div className="mt-3">
+                      <div className="h-1 w-full bg-slate-800/80 rounded-full overflow-hidden">
+                        <div className="h-full w-1/3 bg-blue-500 rounded-full animate-pulse" />
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">Searching...</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -660,7 +728,11 @@ export default function Home2() {
                       
                       return (
                         <div className="space-y-4">
-                          {/* Growth characteristics */}
+                          {/* Growth characteristics - only show if has data */}
+                          {(species.habit && species.habit !== "Unknown" || 
+                            species.growth_rate && species.growth_rate !== "Unknown" || 
+                            species.spreads_vegetatively || 
+                            species.animal_dispersal) && (
                           <div className="bg-slate-800/30 rounded-lg p-4 space-y-3">
                             <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Growth Characteristics</p>
                             {species.habit && species.habit !== "Unknown" && (
@@ -688,6 +760,7 @@ export default function Home2() {
                               </div>
                             )}
                           </div>
+                          )}
 
                           {/* Environmental tolerances */}
                           {loadingTrefle ? (
@@ -699,6 +772,11 @@ export default function Home2() {
                               </div>
                             </div>
                           ) : (
+                            // Only show if has environmental data
+                            (species.ph_minimum !== undefined && species.ph_minimum !== null && !selectedSpeciesDetail.trefle?.phMin ||
+                             species.ph_maximum !== undefined && species.ph_maximum !== null && !selectedSpeciesDetail.trefle?.phMax ||
+                             species.light_level && species.light_level !== "Unknown" ||
+                             selectedSpeciesDetail.trefle?.phMin !== null && selectedSpeciesDetail.trefle?.phMin !== undefined) && (
                             <div className="bg-slate-800/30 rounded-lg p-4 space-y-3">
                               <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Environmental Tolerances</p>
                           {species.ph_minimum !== undefined && species.ph_minimum !== null && !selectedSpeciesDetail.trefle?.phMin && (
@@ -730,6 +808,7 @@ export default function Home2() {
                               </div>
                             )}
                             </div>
+                            )
                           )}
 
                           {/* Geographic info */}
@@ -764,28 +843,40 @@ export default function Home2() {
               ) : searchQuery.trim() ? (
                 // Search results
                 <motion.div
+                  ref={searchResultsRef}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="px-6 py-4 overflow-y-auto max-h-[calc(80vh-280px)]"
+                  onScroll={(e) => setSearchScrollTop(e.currentTarget.scrollTop)}
                 >
                   <p className="text-sm text-slate-400 mb-4">
                     Found <span className="font-semibold text-white">{filteredSpecies.length}</span> species
                   </p>
+                  {isSearchPending && (
+                    <div className="mb-3">
+                      <div className="h-1 w-full bg-slate-800/80 rounded-full overflow-hidden">
+                        <div className="h-full w-1/3 bg-blue-500 rounded-full animate-pulse" />
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">Searching...</p>
+                    </div>
+                  )}
                   <div className="space-y-2">
-                    {filteredSpecies.length > 0 ? (
-                      filteredSpecies.map((s) => (
+                    {displayedFilteredSpecies.length > 0 ? (
+                      <>
+                        {searchTopSpacerHeight > 0 && <div style={{ height: searchTopSpacerHeight }} />}
+                        {displayedFilteredSpecies.map((s) => (
                         <button
                           key={s.scientific_name}
                           onClick={() => handleSpeciesClick(s)}
                           disabled={loadingSpeciesDetail}
-                          className="w-full bg-slate-800/50 hover:bg-slate-800/80 disabled:opacity-50 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all text-left"
+                          className="w-full h-[84px] bg-slate-800/50 hover:bg-slate-800/80 disabled:opacity-50 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all text-left"
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
-                              <h4 className="text-white font-medium">
+                              <h4 className="text-white font-medium truncate">
                                 {s.common_name !== "Unknown" ? s.common_name : s.scientific_name}
                               </h4>
-                              <p className="text-xs text-slate-500 italic">{s.scientific_name}</p>
+                              <p className="text-xs text-slate-500 italic truncate">{s.scientific_name}</p>
                             </div>
                             <div className="flex flex-col items-end gap-1 ml-2">
                               <Badge className={`border-0 ${getRiskBadgeStyle(s.risk_label)}`}>
@@ -797,7 +888,9 @@ export default function Home2() {
                             </div>
                           </div>
                         </button>
-                      ))
+                        ))}
+                        {searchBottomSpacerHeight > 0 && <div style={{ height: searchBottomSpacerHeight }} />}
+                      </>
                     ) : (
                       <div className="p-4 rounded-xl border border-dashed border-slate-700 text-center">
                         <p className="text-sm text-slate-500">No species found matching "{searchQuery}"</p>
@@ -850,48 +943,59 @@ export default function Home2() {
                           {label} Species ({species.length})
                         </h3>
                       </div>
-                      <div className="px-6 pb-6 overflow-y-auto max-h-[35vh] space-y-2">
-                        {species.length > 0 ? species.map((s) => (
-                          <button
-                            key={s.scientific_name}
-                            onClick={() => handleSpeciesClick(s)}
-                            disabled={loadingSpeciesDetail}
-                            className="w-full bg-slate-800/50 hover:bg-slate-800/80 disabled:opacity-50 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all text-left"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-white font-medium truncate">
-                                  {s.common_name !== "Unknown" ? s.common_name : s.scientific_name}
-                                </h4>
-                                <p className="text-xs text-slate-500 italic truncate">{s.scientific_name}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  {s.found_in_gbif_radius && (
-                                    <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">
-                                      Nearby
-                                    </Badge>
-                                  )}
-                                  {s.is_invasive === 1 && (
-                                    <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">
-                                      Invasive
-                                    </Badge>
-                                  )}
+                      <div className="px-6 pb-6 overflow-y-auto max-h-[35vh]">
+                        <div className="space-y-2">
+                          {species.slice(0, visibleCounts[expandedCategory]).map((s) => (
+                            <button
+                              key={s.scientific_name}
+                              onClick={() => handleSpeciesClick(s)}
+                              disabled={loadingSpeciesDetail}
+                              className="w-full bg-slate-800/50 hover:bg-slate-800/80 disabled:opacity-50 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all text-left"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-white font-medium truncate">
+                                    {s.common_name !== "Unknown" ? s.common_name : s.scientific_name}
+                                  </h4>
+                                  <p className="text-xs text-slate-500 italic truncate">{s.scientific_name}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {s.found_in_gbif_radius && (
+                                      <Badge className="bg-blue-500/20 text-blue-400 border-0 text-xs">
+                                        Nearby
+                                      </Badge>
+                                    )}
+                                    {s.is_invasive === 1 && (
+                                      <Badge className="bg-purple-500/20 text-purple-400 border-0 text-xs">
+                                        Invasive
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-1 ml-2">
+                                  <Badge className={`border-0 ${getRiskBadgeStyle(s.risk_label)}`}>
+                                    {s.risk_label}
+                                  </Badge>
+                                  <span className="text-xs text-slate-500">
+                                    {(s.risk_score * 100).toFixed(0)}%
+                                  </span>
                                 </div>
                               </div>
-                              <div className="flex flex-col items-end gap-1 ml-2">
-                                <Badge className={`border-0 ${getRiskBadgeStyle(s.risk_label)}`}>
-                                  {s.risk_label}
-                                </Badge>
-                                <span className="text-xs text-slate-500">
-                                  {(s.risk_score * 100).toFixed(0)}%
-                                </span>
-                              </div>
-                            </div>
-                          </button>
-                        )) : (
-                          <div className="p-4 rounded-xl border border-dashed border-slate-700 text-center">
-                            <p className="text-sm text-slate-500">No {label.toLowerCase()} species detected</p>
-                          </div>
-                        )}
+                            </button>
+                          ))}
+                          {visibleCounts[expandedCategory] < species.length && (
+                            <button
+                              onClick={() => setVisibleCounts(prev => ({ ...prev, [expandedCategory]: prev[expandedCategory] + 100 }))}
+                              className="w-full py-3 rounded-xl border border-dashed border-slate-700 hover:border-slate-500 text-center transition-colors group"
+                            >
+                              <p className="text-sm text-slate-400 group-hover:text-white transition-colors">
+                                Load 100 more
+                              </p>
+                              <p className="text-xs text-slate-600 mt-0.5">
+                                Showing {Math.min(visibleCounts[expandedCategory], species.length).toLocaleString()} of {species.length.toLocaleString()}
+                              </p>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   );

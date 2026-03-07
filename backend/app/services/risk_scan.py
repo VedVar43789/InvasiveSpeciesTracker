@@ -69,6 +69,10 @@ def run_risk_scan(
     norm_rain = np.clip(rainfall / 3000.0, 0, 1)
     dynamic_profile['growth_minimum_precipitation_mm'] = norm_rain
 
+    # Pass geospatial context for region-specific risk rules
+    dynamic_profile['latitude'] = float(lat)
+    dynamic_profile['longitude'] = float(lng)
+
     if biome_context == 'Grassland':
         dynamic_profile['habit_Graminoid'] = 1.0
     elif biome_context == 'Forest':
@@ -80,7 +84,7 @@ def run_risk_scan(
     #dynamic_profile['dispersal_Animal'] = 1.0
 
     # Calculate risk
-    raw_results = calculate_risk(ml_df, dynamic_profile)
+    raw_results = calculate_risk(dynamic_profile)
 
     # Format results
     formatted_results = []
