@@ -314,7 +314,7 @@ function CrisisSection() {
           <div className="space-y-10">
             {TIMELINE_EVENTS.map((ev, i) => (
               <motion.div key={ev.year} variants={fadeUp} className="relative group">
-                <div className={`absolute -left-7 top-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${severityColor[ev.severity]} ${severityGlow[ev.severity]} transition-shadow`} />
+                <div className={`absolute -left-8 top-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${severityColor[ev.severity]} ${severityGlow[ev.severity]} transition-shadow`} />
                 <p className="text-sm font-display text-white tracking-wide">{ev.year}</p>
                 <p className="text-sm font-body text-slate-500 mt-1 leading-relaxed group-hover:text-slate-400 transition-colors">{ev.event}{ev.cite && <Cite href={ev.cite.href} n={ev.cite.n} />}</p>
               </motion.div>
