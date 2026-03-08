@@ -165,7 +165,7 @@ export default function Home() {
               <a href="#" className="text-white text-sm font-medium">Dashboard</a>
               <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Species</a>
               <a href="#" className="text-slate-400 text-sm hover:text-white transition-colors">Reports</a>
-              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Why track? · Hawaii</Link>
+              <Link to="/research" className="text-slate-400 text-sm hover:text-white transition-colors">Why track? · Hawaii</Link>
             </nav>
 
             <div className="flex items-center gap-3">

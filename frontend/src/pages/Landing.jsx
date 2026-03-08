@@ -161,28 +161,36 @@ function SpeciesIntelVisual() {
   );
 }
 
+// Generate heatmap dots once so they don't change on every scroll/re-render
+function useHeatmapDots() {
+  return useState(() =>
+    Array.from({ length: 40 }, (_, i) => ({
+      id: i,
+      x: 15 + Math.random() * 70,
+      y: 15 + Math.random() * 70,
+      size: 3 + Math.random() * 12,
+      opacity: 0.15 + Math.random() * 0.4,
+      isHot: Math.random() > 0.5,
+    }))
+  )[0];
+}
+
 function HeatmapVisual() {
+  const dots = useHeatmapDots();
   return (
     <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-slate-700/30 overflow-hidden">
       <div className="absolute inset-0">
-        {Array.from({ length: 40 }).map((_, i) => {
-          const x = 15 + Math.random() * 70;
-          const y = 15 + Math.random() * 70;
-          const size = 3 + Math.random() * 12;
-          const opacity = 0.15 + Math.random() * 0.4;
-          const isHot = Math.random() > 0.5;
-          return (
-            <div
-              key={i}
-              className="absolute rounded-full"
-              style={{
-                left: `${x}%`, top: `${y}%`, width: size, height: size,
-                background: isHot ? `rgba(239,68,68,${opacity})` : `rgba(234,179,8,${opacity})`,
-                boxShadow: isHot ? `0 0 ${size * 2}px rgba(239,68,68,${opacity * 0.5})` : `0 0 ${size}px rgba(234,179,8,${opacity * 0.3})`,
-              }}
-            />
-          );
-        })}
+        {dots.map((d) => (
+          <div
+            key={d.id}
+            className="absolute rounded-full"
+            style={{
+              left: `${d.x}%`, top: `${d.y}%`, width: d.size, height: d.size,
+              background: d.isHot ? `rgba(239,68,68,${d.opacity})` : `rgba(234,179,8,${d.opacity})`,
+              boxShadow: d.isHot ? `0 0 ${d.size * 2}px rgba(239,68,68,${d.opacity * 0.5})` : `0 0 ${d.size}px rgba(234,179,8,${d.opacity * 0.3})`,
+            }}
+          />
+        ))}
         <div className="absolute inset-4 border border-slate-700/20 rounded-lg" />
         <div className="absolute inset-4 grid grid-cols-4 grid-rows-3">
           {Array.from({ length: 12 }).map((_, i) => <div key={i} className="border border-slate-700/10" />)}
@@ -466,8 +474,8 @@ export default function Landing() {
       {/* Nav */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="grid grid-cols-3 items-center">
+            <div className="flex items-center gap-3 w-fit">
               <div className="shrink-0">
                 <img src="/favicon/favicon-96x96.png" alt="InvasiveWatch" className="w-9 h-9 rounded-lg" />
               </div>
@@ -479,16 +487,16 @@ export default function Landing() {
               </div>
             </div>
 
-            <nav className="hidden md:flex items-center gap-8">
-              <span className="text-white text-sm font-medium relative">
+            <nav className="hidden md:flex items-center justify-center gap-8">
+              <span className="text-white text-sm font-medium relative pb-1">
                 Home
-                <span className="absolute -bottom-1 left-0 right-0 h-px bg-gradient-to-r from-cyan-500 to-blue-500" />
+                <span className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500" />
               </span>
               <Link to="/dashboard" className="text-slate-400 text-sm hover:text-white transition-colors">Dashboard</Link>
-              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
+              <Link to="/research" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-end gap-3">
               <Link to="/dashboard">
                 <Button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-body">
                   Open Dashboard
@@ -558,7 +566,7 @@ export default function Landing() {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Button>
             </Link>
-            <Link to="/hawaii">
+            <Link to="/research">
               <button className="inline-flex items-center justify-center h-12 px-8 text-base font-body font-medium rounded-xl border border-cyan-500/40 text-cyan-300 bg-cyan-500/5 hover:bg-cyan-500/15 hover:border-cyan-400/60 hover:text-cyan-200 transition-all duration-200">
                 Read: Hawaii Case Study
               </button>

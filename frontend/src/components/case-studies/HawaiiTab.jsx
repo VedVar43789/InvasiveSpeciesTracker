@@ -405,11 +405,72 @@ const HAWAII_DATA_CACHE = (() => {
   return m;
 })();
 
+// One-way duration in ms; ease-in-out makes it slow at ends, faster in middle
+const SLIDER_ANIMATION_DURATION_MS = 6000;
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 function HawaiiSpreadMapSection() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
-  const [year, setYear] = useState(2010);
+  const directionRef = useRef(1);
+  const startTimeRef = useRef(null);
+  const startValueRef = useRef(YEAR_MIN);
+  const pausedRef = useRef(false);
+  const rafRef = useRef(null);
+  const [year, setYear] = useState(YEAR_MIN);
   const [error, setError] = useState(null);
+
+  // Smooth auto-animate; pause when user drags, resume from current value on release
+  useEffect(() => {
+    startTimeRef.current = null;
+    startValueRef.current = YEAR_MIN;
+
+    const tick = (now) => {
+      if (pausedRef.current) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      if (startTimeRef.current == null) startTimeRef.current = now;
+      const elapsed = now - startTimeRef.current;
+      const progress = Math.min(elapsed / SLIDER_ANIMATION_DURATION_MS, 1);
+      const eased = easeInOutCubic(progress);
+      const startVal = startValueRef.current;
+
+      const value =
+        directionRef.current === 1
+          ? startVal + eased * (YEAR_MAX - startVal)
+          : startVal - eased * (startVal - YEAR_MIN);
+      setYear(value);
+
+      if (progress >= 1) {
+        const endVal = directionRef.current === 1 ? YEAR_MAX : YEAR_MIN;
+        startValueRef.current = endVal;
+        directionRef.current *= -1;
+        startTimeRef.current = now;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  const handleSliderChange = useCallback(([v]) => {
+    setYear(v);
+    pausedRef.current = true;
+  }, []);
+
+  const handleSliderCommit = useCallback(([v]) => {
+    const current = v;
+    startValueRef.current = current;
+    directionRef.current = current < (YEAR_MIN + YEAR_MAX) / 2 ? 1 : -1;
+    startTimeRef.current = null;
+    pausedRef.current = false;
+  }, []);
 
   const setMapData = useCallback((y) => {
     const map = mapRef.current;
@@ -492,10 +553,12 @@ function HawaiiSpreadMapSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Map uses integer years; slider value is fractional for smooth motion
+  const yearInt = Math.round(year);
   useEffect(() => {
     if (!mapRef.current) return;
-    setMapData(year);
-  }, [year, setMapData]);
+    setMapData(yearInt);
+  }, [yearInt, setMapData]);
 
   return (
     <RevealSection className="py-28 px-6 bg-slate-900/20">
@@ -516,13 +579,15 @@ function HawaiiSpreadMapSection() {
               <span className="text-slate-400 text-sm font-body whitespace-nowrap">Through</span>
               <Slider
                 value={[year]}
-                onValueChange={([v]) => setYear(v)}
+                onValueChange={handleSliderChange}
+                onValueCommit={handleSliderCommit}
                 min={YEAR_MIN}
                 max={YEAR_MAX}
-                step={1}
+                step={0.1}
                 className="w-full sm:w-48"
+                rangeClassName="bg-cyan-500"
               />
-              <span className="text-white font-display tabular-nums min-w-[3rem]">{year}</span>
+              <span className="text-white font-display tabular-nums min-w-[3rem]">{yearInt}</span>
             </div>
             {error && (
               <span className="text-red-400/90 text-sm">{error}</span>
@@ -539,7 +604,7 @@ function HawaiiSpreadMapSection() {
 
         {!error && (
           <p className="text-slate-500 text-sm font-body mt-3">
-            Showing observations from {YEAR_MIN} through {year}. Some observations may have obscured coordinates and are not shown.
+            Showing observations from {YEAR_MIN} through {yearInt}. Some observations may have obscured coordinates and are not shown.
           </p>
         )}
       </div>

@@ -679,8 +679,8 @@ export default function Home2() {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="grid grid-cols-3 items-center">
+            <div className="flex items-center gap-3 w-fit">
               <div className="shrink-0">
                 <img src="/favicon/favicon-96x96.png" alt="InvasiveWatch" className="w-9 h-9 rounded-lg" />
               </div>
@@ -692,16 +692,16 @@ export default function Home2() {
               </div>
             </div>
 
-            <nav className="hidden md:flex items-center gap-8">
+            <nav className="hidden md:flex items-center justify-center gap-8">
               <Link to="/" className="text-slate-400 text-sm hover:text-white transition-colors">Home</Link>
-              <span className="text-white text-sm font-medium relative">
+              <span className="text-white text-sm font-medium relative pb-1">
                 Dashboard
-                <span className="absolute -bottom-1 left-0 right-0 h-px bg-gradient-to-r from-cyan-500 to-blue-500" />
+                <span className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500" />
               </span>
-              <Link to="/hawaii" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
+              <Link to="/research" className="text-slate-400 text-sm hover:text-white transition-colors">Research</Link>
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-end gap-3">
               <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white">
                 <Search className="w-5 h-5" />
               </Button>

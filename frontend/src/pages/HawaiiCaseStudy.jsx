@@ -27,27 +27,28 @@ function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/30">
       <div className="max-w-7xl mx-auto px-6 py-4">
-        <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
+        <div className="grid grid-cols-3 items-center">
+          <Link to="/" className="flex items-center gap-3 group w-fit">
             <div className="shrink-0">
               <img src="/favicon/favicon-96x96.png" alt="InvasiveWatch" className="w-9 h-9 rounded-lg" />
             </div>
             <div>
-              <h1 className="text-xl font-display text-white tracking-tight">
+              <h1 className="text-xl font-display font-semibold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                 InvasiveWatch
               </h1>
               <p className="text-[11px] font-body text-slate-500 tracking-wide">Global Species Tracker</p>
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center justify-center gap-8">
             <Link to="/" className="text-slate-400 text-sm font-body hover:text-white transition-colors">Home</Link>
             <Link to="/dashboard" className="text-slate-400 text-sm font-body hover:text-white transition-colors">Dashboard</Link>
-            <span className="text-white text-sm font-body font-medium relative">
+            <span className="text-white text-sm font-body font-medium relative pb-1">
               Research
-              <span className="absolute -bottom-1 left-0 right-0 h-px bg-gradient-to-r from-cyan-500 to-blue-500" />
+              <span className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500" />
             </span>
           </nav>
+          <div />
         </div>
       </div>
     </header>
